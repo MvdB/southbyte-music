@@ -1,0 +1,33 @@
+# Ergebnisse und Audio bleiben lokal (Konvention der Familie: raw-first,
+# nur kuratierte docs/ werden committet)
+results/
+*.wav
+*.mp3
+*.flac
+
+# Secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+id_rsa*
+
+# Logs, Backups, Temp
+*.log
+*.bak
+*.tmp
+*.orig
+*.swp
+*~
+
+# Prozess-/Loop-State
+*.pid
+nohup.out
+.loop_next
+
+# Python-/OS-Muell
+__pycache__/
+*.py[cod]
+.venv/
+.DS_Store

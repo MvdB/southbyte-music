@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+  # Manuell ausloesbar: ein Push loest nicht immer einen Run aus. Damit laesst
+  # sich ein Run nachholen, ohne einen Leer-Commit zu erzeugen. Gleiche
+  # Begruendung wie im CI von southbyte-sync.
+  workflow_dispatch:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # Die Startskripte sind der ausfuehrbare Kern dieses Repos — ein
+      # Syntaxfehler dort faellt sonst erst auf der Maschine auf, mitten im
+      # Modellstart. shellcheck laeuft mit -x, damit gesourcte Profile
+      # (music_profile.conf) keine Fehlalarme erzeugen.
+      - name: shellcheck
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
+          shellcheck -x -S warning serving/*.sh
+
+      - name: bash -n
+        run: for f in serving/*.sh; do bash -n "$f"; done
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install dev tools
+        run: pip install ruff mypy
+
+      # Noch gibt es keinen Python-Code (Serving laeuft ueber sgl-omni im
+      # Container, die Oberflaeche ist statisch). Die Schritte laufen trotzdem
+      # mit, damit ein spaeterer eval/-Harness vom ersten Commit an geprueft
+      # wird und niemand die Pruefung erst nachruesten muss.
+      - name: ruff check
+        run: ruff check .
+
+      - name: ruff format
+        run: ruff format --check .
+
+      - name: mypy
+        run: |
+          if compgen -G "**/*.py" > /dev/null; then
+            mypy --ignore-missing-imports .
+          else
+            echo "kein Python-Code vorhanden — uebersprungen"
+          fi
+        shell: bash
+
+  webui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # Die Lizenz von MiniMax-Music3 verlangt, dass der Modellname in der
+      # Oberflaeche deutlich sichtbar ist (COMMUNITY LICENSE, Abschnitt 3.1).
+      # Das ist eine Rechtspflicht, keine Kosmetik — deshalb bricht der Build,
+      # wenn die Nennung aus index.html verschwindet.
+      - name: Modell-Nennung in der Oberflaeche
+        run: |
+          grep -q "MiniMax-Music3" webui/index.html \
+            || { echo "FEHLER: Modellnennung 'MiniMax-Music3' fehlt in webui/index.html"; exit 1; }
+          echo "Modellnennung vorhanden: $(grep -c 'MiniMax-Music3' webui/index.html)x"
+
+      # Branding-Regel der Familie: genau eine Zeile im README-Footer, nirgends
+      # sonst (nicht in Code, Docstrings oder CLI-Ausgabe).
+      - name: southbyte-Branding genau einmal
+        run: |
+          n=$(grep -c "Built by \[southbyte\](https://southbyte.de)." README.md || true)
+          [ "$n" -eq 1 ] || { echo "FEHLER: Branding-Zeile ${n}x im README (erwartet: 1)"; exit 1; }
+          echo "Branding-Zeile korrekt: 1x"

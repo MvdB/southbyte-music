@@ -1,0 +1,29 @@
+# SGLang-Omni fuer MiniMax-Music3 auf dem DGX Spark (GB10, sm_120, aarch64).
+#
+# Basis ist bewusst v0.5.16 und nicht :dev — sglang-omni 0.1.1 pinnt exakt
+# sglang==0.5.16 und torch==2.11.0. Im :dev-Image steckt sglang 0.0.0.dev1,
+# ein pip install wuerde es herunterstufen und die dort gebauten Kernel
+# zerschiessen. Dieselbe Versionskopplung wie bei vllm/vllm-omni in
+# southbyte-tts, wo die Minor-Versionen zusammenpassen muessen.
+#
+# arm64 ist fuer diesen Tag vorhanden (Manifest am 2026-08-14 geprueft:
+# amd64 + arm64, ebenso fuer -cu129 und -cu130).
+FROM lmsysorg/sglang:v0.5.16
+
+# Version bewusst gepinnt: 0.1.1 ist zum Zeitpunkt des Baus die einzige
+# veroeffentlichte Version. Ohne Pin holt ein spaeterer Build stillschweigend
+# eine andere und bricht die Kopplung zu sglang 0.5.16 auf.
+RUN pip install --no-cache-dir sglang-omni==0.1.1
+
+# Import- und CUDA-Wache: bricht den Build ab, wenn die Installation die
+# Torch-CUDA-Bindung zerschossen hat. Ohne diese Pruefung faellt so etwas erst
+# beim ersten Modellstart auf — die abgeleiteten Dockerfiles in southbyte-tts
+# machen es aus demselben Grund so.
+RUN python3 -c "\
+import torch, sglang; \
+print('torch', torch.__version__, 'cuda', torch.version.cuda); \
+assert torch.version.cuda, 'Torch ohne CUDA-Unterstuetzung installiert'; \
+print('sglang', sglang.__version__); \
+import sgl_omni; print('sgl_omni vorhanden')"
+
+# Kein ENTRYPOINT-Override: run_music.sh ruft 'sgl-omni serve ...' explizit auf.

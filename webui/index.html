@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>southbyte-music — MiniMax-Music3</title>
+<style>
+  :root{
+    --bg:#0f1115; --fg:#e8eaed; --dim:#9aa0a6; --line:#262a31;
+    --card:#161a20; --akzent:#4f8cff; --warn:#e5a13a;
+  }
+  @media (prefers-color-scheme: light){
+    :root{ --bg:#f6f7f9; --fg:#1b1e23; --dim:#5f6570; --line:#dfe3e8;
+           --card:#ffffff; --akzent:#2a6ae0; --warn:#a86a10; }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+       font:15px/1.55 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+  header{padding:20px 24px;border-bottom:1px solid var(--line);
+         display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+  h1{font-size:18px;margin:0;font-weight:600}
+  .modell{color:var(--dim);font-size:13px}
+  main{max-width:940px;margin:0 auto;padding:24px;display:grid;gap:18px}
+  .karte{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px}
+  label{display:block;font-size:13px;color:var(--dim);margin-bottom:6px}
+  textarea,input,select{width:100%;background:var(--bg);color:var(--fg);
+    border:1px solid var(--line);border-radius:7px;padding:10px;font:inherit}
+  textarea{min-height:150px;resize:vertical;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px}
+  .reihe{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px}
+  button{background:var(--akzent);color:#fff;border:0;border-radius:7px;
+         padding:11px 20px;font:inherit;font-weight:600;cursor:pointer}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  .hinweis{font-size:12px;color:var(--dim);margin-top:6px}
+  .status{font-size:13px;color:var(--dim);min-height:20px}
+  .fehler{color:var(--warn)}
+  audio{width:100%;margin-top:12px}
+  footer{padding:18px 24px;border-top:1px solid var(--line);
+         color:var(--dim);font-size:12px;text-align:center}
+  code{background:var(--bg);padding:1px 5px;border-radius:4px;font-size:12px}
+</style>
+</head>
+<body>
+<header>
+  <h1>southbyte-music</h1>
+  <!-- Lizenzauflage MiniMax-Music3 COMMUNITY LICENSE, Abschnitt 3.1: der Name
+       muss in der Oberflaeche kommerzieller Produkte deutlich sichtbar sein.
+       Deshalb steht er hier oben und nicht nur im Footer. -->
+  <span class="modell">Modell: <strong>MiniMax-Music3</strong></span>
+</header>
+
+<main>
+  <div class="karte">
+    <label for="lyrics">Text — Abschnitts-Tags in eckigen Klammern steuern den Aufbau</label>
+    <textarea id="lyrics" spellcheck="false">[Intro]
+
+[Verse]
+Der Nebel liegt noch auf dem Fluss
+ein Zug faehrt durch das Morgenlicht
+
+[Chorus]
+Und alles was bleibt ist ein Klang
+der uns traegt bis zum naechsten Tag
+
+[Outro]
+</textarea>
+    <div class="hinweis">Ueblich sind <code>[Intro]</code>, <code>[Verse]</code>, <code>[Chorus]</code>, <code>[Bridge]</code>, <code>[Outro]</code>. Sie geben die Struktur vor, erzwingen sie aber nicht.</div>
+  </div>
+
+  <div class="karte">
+    <label for="beschreibung">Beschreibung — Genre, Tempo, Tonart, Stimmung, Produktion</label>
+    <input id="beschreibung" value="Ruhiger deutscher Akustik-Pop, 90 BPM, A-Moll, warme Gitarren, weibliche Stimme, luftige Produktion">
+    <div class="reihe" style="margin-top:14px">
+      <div>
+        <label for="laenge">Laenge (Frames, 25/s)</label>
+        <input id="laenge" type="number" value="750" min="100" max="9000" step="50">
+        <div class="hinweis">750 ≈ 30 s · max. 9000 ≈ 5 min</div>
+      </div>
+      <div>
+        <label for="seed">Seed</label>
+        <input id="seed" type="number" value="7">
+        <div class="hinweis">Gleicher Seed, gleiche Eingabe → gleiches Stueck</div>
+      </div>
+      <div>
+        <label for="endpunkt">Endpunkt</label>
+        <input id="endpunkt" value="http://127.0.0.1:8011">
+      </div>
+    </div>
+    <div style="margin-top:16px;display:flex;gap:12px;align-items:center">
+      <button id="los">Musik erzeugen</button>
+      <span class="status" id="status"></span>
+    </div>
+    <audio id="spieler" controls hidden></audio>
+    <div id="download" style="margin-top:10px"></div>
+  </div>
+</main>
+
+<footer>
+  Erzeugt mit <strong>MiniMax-Music3</strong> · southbyte-music
+</footer>
+
+<script>
+const $ = id => document.getElementById(id);
+let letzteUrl = null;
+
+$("los").addEventListener("click", async () => {
+  const knopf = $("los"), status = $("status");
+  const basis = $("endpunkt").value.replace(/\/+$/, "");
+  knopf.disabled = true;
+  status.className = "status";
+  status.textContent = "erzeuge … das dauert je nach Laenge ein bis mehrere Minuten";
+  $("spieler").hidden = true;
+  $("download").innerHTML = "";
+  if (letzteUrl) { URL.revokeObjectURL(letzteUrl); letzteUrl = null; }
+
+  const start = performance.now();
+  try {
+    const antwort = await fetch(basis + "/v1/audio/speech", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        model: "MiniMaxAI--MiniMax-Music3",
+        input: $("lyrics").value,
+        instructions: $("beschreibung").value,
+        response_format: "wav",
+        seed: Number($("seed").value),
+        max_new_tokens: Number($("laenge").value),
+        stream: false
+      })
+    });
+    if (!antwort.ok) {
+      // Fehlertext des Servers zeigen statt nur des Statuscodes — bei
+      // Modellfehlern steht dort die eigentliche Ursache.
+      const text = await antwort.text();
+      throw new Error(antwort.status + " — " + text.slice(0, 300));
+    }
+    const blob = await antwort.blob();
+    letzteUrl = URL.createObjectURL(blob);
+    const spieler = $("spieler");
+    spieler.src = letzteUrl;
+    spieler.hidden = false;
+    const sekunden = ((performance.now() - start) / 1000).toFixed(1);
+    const mb = (blob.size / 1048576).toFixed(1);
+    status.textContent = `fertig in ${sekunden} s · ${mb} MB`;
+    const a = document.createElement("a");
+    a.href = letzteUrl;
+    a.download = "southbyte-music-" + Date.now() + ".wav";
+    a.textContent = "WAV herunterladen";
+    $("download").appendChild(a);
+  } catch (e) {
+    status.className = "status fehler";
+    status.textContent = "Fehler: " + e.message;
+  } finally {
+    knopf.disabled = false;
+  }
+});
+</script>
+</body>
+</html>

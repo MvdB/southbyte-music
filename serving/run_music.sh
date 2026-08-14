@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+# Startet MiniMax-Music3 ueber SGLang-Omni auf dem DGX Spark.
+#
+# Muster wie southbyte-tts/serving/run_*.sh und southbyte-image/serving/run_image.sh:
+# env-ueberschreibbar, Modell read-only aus ~/hf_models, vorhandenen Container
+# entfernen, dann detached starten, fester Host-Port.
+#
+# Warum SGLang statt eines eigenen Adapters: MiniMax-Music3 wird vom Hersteller
+# ueber SGLang-Omni bedient und bringt dort /v1/audio/speech nativ mit — dieselbe
+# OpenAI-kompatible Schnittstelle, die auch die TTS-Adapter der Familie sprechen.
+# Damit braucht die Evaluation nur eine andere URL. Gleiche Konstellation wie bei
+# Voxtral-TTS, das ueber vLLM-Omni nativ bedient wird.
+#
+# Das Image muss vorher gebaut werden (serving/Dockerfile.music):
+#   docker build -t spark-sglang-omni:v1 -f serving/Dockerfile.music serving/
+# Grund: sgl-omni steckt NICHT im Standard-Image. Geprueft am 2026-08-14 in
+# lmsysorg/sglang:dev — dort gibt es nur sglang, sglang-kernel und
+# sglang-router, weder das Kommando sgl-omni noch das Modul sgl_omni.
+# SGLang-Omni ist ein eigenes Projekt (sgl-project/sglang-omni, PyPI
+# sglang-omni), genau wie vllm-omni neben vllm steht.
+#
+# WICHTIG — Versionskopplung: sglang-omni 0.1.1 pinnt exakt sglang==0.5.16
+# und torch==2.11.0. Deshalb ist die Basis lmsysorg/sglang:v0.5.16 (arm64
+# vorhanden) und NICHT :dev, das sglang 0.0.0.dev1 mitbringt. Ein pip install
+# in :dev wuerde sglang herunterstufen und die im Image gebauten Kernel
+# zerschiessen. Dieselbe Falle wie bei vllm/vllm-omni in southbyte-tts, wo
+# die Minor-Versionen zusammenpassen muessen.
+#
+# STAND 2026-08-14: NICHT AUF HARDWARE VERIFIZIERT. Der Start auf sm_120
+# (GB10) ist ungeprueft; die Werte unten sind Ausgangspunkte, keine Messwerte.
+set -euo pipefail
+
+HF_MODELS_DIR="${HF_MODELS_DIR:-$HOME/hf_models}"
+CONTAINER_NAME="${CONTAINER_NAME:-southbyte-music}"
+HOST_PORT="${HOST_PORT:-8011}"
+IMAGE="${IMAGE:-spark-sglang-omni:v1}"
+MODEL_DIR="${MODEL_DIR:-MiniMaxAI--MiniMax-Music3}"
+SPARK_PROFILES_DIR="${SPARK_PROFILES_DIR:-$HOME/southbyte/southbyte-spark-profiles}"
+
+# Profil (Sampling, Laenge, Speicher) fuer dieses Modell laden, falls vorhanden.
+PROFILE="${SPARK_PROFILES_DIR}/music/${MODEL_DIR}/music_profile.conf"
+if [[ -f "${PROFILE}" ]]; then
+  # shellcheck disable=SC1090
+  source "${PROFILE}"
+  echo "Profil geladen: ${PROFILE}"
+else
+  echo "Kein Profil unter ${PROFILE} — Standardwerte werden genutzt."
+fi
+
+if [[ ! -d "${HF_MODELS_DIR}/${MODEL_DIR}" ]]; then
+  echo "FEHLER: Modellverzeichnis fehlt: ${HF_MODELS_DIR}/${MODEL_DIR}" >&2
+  echo "        Der Sync holt es aus der LocalCache-Collection (~47 GB)." >&2
+  exit 1
+fi
+
+if docker ps -a --format '{{.Names}}' | grep -qx "${CONTAINER_NAME}"; then
+  echo "Container '${CONTAINER_NAME}' existiert -> wird entfernt."
+  docker rm -f "${CONTAINER_NAME}" >/dev/null
+fi
+
+echo "Starte ${MODEL_DIR} auf Port ${HOST_PORT} (Image ${IMAGE}) ..."
+docker run -d --name "${CONTAINER_NAME}" \
+  --gpus all \
+  --ipc=host \
+  -p "${HOST_PORT}:8000" \
+  -v "${HF_MODELS_DIR}:/hf_models:ro" \
+  -e TRANSFORMERS_OFFLINE=1 \
+  -e HF_HUB_OFFLINE=1 \
+  ${PROFILE_DOCKER_ENV:+$(for kv in ${PROFILE_DOCKER_ENV}; do printf -- '-e %s ' "$kv"; done)} \
+  "${IMAGE}" \
+  sgl-omni serve \
+    --model-path "/hf_models/${MODEL_DIR}" \
+    --host 0.0.0.0 --port 8000 \
+    ${PROFILE_EXTRA_ARGS:-}
+
+cat <<EOF
+
+Gestartet. Naechste Schritte:
+  Logs  : docker logs -f ${CONTAINER_NAME}
+  Test  : curl http://127.0.0.1:${HOST_PORT}/v1/models
+  Musik : curl http://127.0.0.1:${HOST_PORT}/v1/audio/speech \\
+            -H 'Content-Type: application/json' \\
+            -d '{"model":"${MODEL_DIR}","input":"[Verse]\\nZeile eins\\n[Chorus]\\nRefrain","instructions":"Ruhiger Akustik-Pop, 90 BPM, warm","response_format":"wav","max_new_tokens":750}' \\
+            -o lied.wav
+EOF
