@@ -257,6 +257,23 @@ CI builds both architectures **natively** — `ubuntu-24.04` for amd64 and
 `ubuntu-24.04-arm` for arm64 — and merges the two into one manifest list. No
 QEMU, so no hours-long emulated build.
 
+Two things had to be worked around, and the first attempt died on both:
+
+**The image is 26.5 GB unpacked**, almost all of it the SGLang base. A GitHub
+runner has around 14 GB free on `/`, so the job ran out of disk so thoroughly
+that the runner could not write its own log. The workflow now clears the
+preinstalled toolchains it never touches and moves Docker's data root onto the
+runner's large second disk before building.
+
+**GHCR paths must be lowercase.** `github.repository_owner` gives the name as
+GitHub spells it — `MvdB` — and `docker push ghcr.io/MvdB/…` fails with
+*repository name must be lowercase*. The workflow lowercases it.
+
+There is no Actions cache for these builds. It holds 10 GB per repository, a
+26 GB image does not fit, and the only layers that are ours are a `pip install`
+and a few files — faster to rebuild than to fetch from a cache that would be
+evicted every run anyway.
+
 **The build needs no GPU.** It installs packages and runs an import guard; CUDA
 is only touched at runtime. What CI therefore *cannot* tell you is whether the
 thing actually runs on a card. That is a separate step, on the hardware:

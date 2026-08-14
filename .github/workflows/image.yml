@@ -14,6 +14,20 @@ name: Images
 # Die Matrix nutzt sie: jede Architektur baut auf ihrer eigenen Maschine, in
 # derselben Zeit wie lokal.
 #
+# ── Warum der Runner erst aufgeraeumt wird ───────────────────────────────
+# Das Serving-Image ist entpackt 26,5 GB — das Basisimage von SGLang allein
+# bringt 24,6 GB mit. Ein GitHub-Runner hat auf / rund 14 GB frei; der erste
+# Lauf ist genau daran gestorben ("No space left on device", und zwar so
+# gruendlich, dass der Runner nicht einmal mehr sein eigenes Log schreiben
+# konnte). Deshalb wird vor dem Bauen Platz geschaffen und die Docker-Ablage
+# auf die grosse zweite Platte gelegt.
+#
+# ── Warum kein GHA-Cache ─────────────────────────────────────────────────
+# Der Actions-Cache fasst 10 GB je Repository. Ein 26-GB-Image passt da nicht
+# hinein, und die einzigen Schichten, die uns gehoeren, sind ein pip install
+# und ein paar Dateien — die sind schneller neu gebaut als aus einem Cache
+# geholt, der ohnehin bei jedem Lauf verdraengt wuerde.
+#
 # ── Warum push-by-digest und ein getrennter Merge ────────────────────────
 # Zwei Laeufe koennen nicht denselben Tag schreiben, ohne sich gegenseitig zu
 # verdraengen — uebrig bliebe ein Image fuer nur eine Architektur. Stattdessen
@@ -55,7 +69,40 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # Muss VOR setup-buildx laufen: der Builder legt seinen Zustand in der
+      # Docker-Ablage ab, die hier gerade verschoben wird.
+      - name: Platz auf dem Runner schaffen
+        if: matrix.komponente.name == 'server'
+        run: |
+          set -eu
+          echo "── vorher ──"; df -h / /mnt 2>/dev/null || df -h /
+          # Vorinstalliertes, das dieser Build nie anfasst.
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+                      /opt/hostedtoolcache/CodeQL /usr/local/share/boost || true
+          # Die zweite Platte des Runners ist gross und leer. Docker dorthin
+          # umzuhaengen bringt mehr als jedes Aufraeumen auf /.
+          if [ -d /mnt ] && [ "$(df --output=avail -k /mnt | tail -1)" -gt 40000000 ]; then
+            sudo systemctl stop docker
+            sudo mkdir -p /mnt/docker
+            printf '{"data-root": "/mnt/docker"}\n' | sudo tee /etc/docker/daemon.json
+            sudo systemctl start docker
+            echo "Docker-Ablage liegt jetzt auf /mnt"
+          else
+            echo "Keine brauchbare zweite Platte — es bleibt beim Aufraeumen."
+          fi
+          echo "── nachher ──"; df -h / /mnt 2>/dev/null || df -h /
+
       - uses: docker/setup-buildx-action@v3
+
+      # GHCR verlangt Kleinschreibung im Pfad. github.repository_owner liefert
+      # den Namen so, wie er auf GitHub steht — hier "MvdB" —, und ein
+      # 'docker push ghcr.io/MvdB/...' scheitert mit "repository name must be
+      # lowercase". Der zweite Grund, warum der erste Lauf nichts abgelegt hat.
+      - name: Registry-Pfad in Kleinschreibung
+        id: pfad
+        env:
+          EIGNER: ${{ github.repository_owner }}
+        run: echo "ziel=${REGISTRY}/${EIGNER,,}/${{ matrix.komponente.image }}" >> "$GITHUB_OUTPUT"
 
       # Bei einem Pull Request wird nur gebaut, nicht veroeffentlicht — ein
       # Fork soll nicht in die Registry schreiben duerfen.
@@ -78,8 +125,6 @@ jobs:
           context: ${{ matrix.komponente.kontext }}
           file: ${{ matrix.komponente.datei }}
           platforms: ${{ matrix.plattform.ziel }}
-          cache-from: type=gha,scope=${{ matrix.komponente.name }}-${{ matrix.plattform.kurz }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.komponente.name }}-${{ matrix.plattform.kurz }}
           build-args: |
             VERSION=${{ github.ref_name }}
             REVISION=${{ github.sha }}
@@ -87,8 +132,8 @@ jobs:
           outputs: >-
             ${{ github.event_name == 'pull_request'
                 && 'type=cacheonly'
-                || format('type=image,name={0}/{1}/{2},push-by-digest=true,name-canonical=true,push=true',
-                          env.REGISTRY, github.repository_owner, matrix.komponente.image) }}
+                || format('type=image,name={0},push-by-digest=true,name-canonical=true,push=true',
+                          steps.pfad.outputs.ziel) }}
 
       # Der Digest wird als leere Datei mit seinem Namen weitergereicht — der
       # Merge-Job braucht nur die Namen, nicht den Inhalt.
@@ -136,11 +181,17 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Registry-Pfad in Kleinschreibung
+        id: pfad
+        env:
+          EIGNER: ${{ github.repository_owner }}
+        run: echo "ziel=${REGISTRY}/${EIGNER,,}/${{ matrix.komponente.image }}" >> "$GITHUB_OUTPUT"
+
       - name: Tags festlegen
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.komponente.image }}
+          images: ${{ steps.pfad.outputs.ziel }}
           tags: |
             type=ref,event=branch
             type=semver,pattern={{version}}
@@ -151,7 +202,7 @@ jobs:
       - name: Manifest-Liste erzeugen
         working-directory: /tmp/digests
         env:
-          ZIEL: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.komponente.image }}
+          ZIEL: ${{ steps.pfad.outputs.ziel }}
         run: |
           set -eu
           mapfile -t tags < <(jq -r '.tags[]' <<< "$DOCKER_METADATA_OUTPUT_JSON")
@@ -162,7 +213,7 @@ jobs:
 
       - name: Ergebnis anzeigen
         env:
-          ZIEL: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.komponente.image }}
+          ZIEL: ${{ steps.pfad.outputs.ziel }}
         run: docker buildx imagetools inspect "${ZIEL}:${{ steps.meta.outputs.version }}"
 
   chart:
