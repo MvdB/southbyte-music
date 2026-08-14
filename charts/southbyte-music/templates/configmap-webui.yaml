@@ -1,0 +1,17 @@
+{{- if .Values.webui.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "southbyte-music.fullname" . }}-webui
+  labels:
+    {{- include "southbyte-music.labels" . | nindent 4 }}
+    app.kubernetes.io/component: webui
+data:
+  # Ueberdeckt die im Image mitgelieferte config.js. Das ist der einzige Ort,
+  # an dem der Endpunkt gesetzt wird — die Oberflaeche hat dafuer bewusst kein
+  # Eingabefeld, weil das eine Frage des Betriebs ist und nicht des Anwenders.
+  config.js: |
+    window.SOUTHBYTE_MUSIC = {
+      endpunkt: {{ .Values.webui.endpunkt | quote }},
+    };
+{{- end }}

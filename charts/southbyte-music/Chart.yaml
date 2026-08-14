@@ -1,0 +1,38 @@
+apiVersion: v2
+name: southbyte-music
+description: MiniMax-Music3 als OpenAI-kompatibler Dienst, mit Weboberflaeche
+type: application
+
+# version ist die Version des Charts, appVersion die der ausgelieferten Images.
+# Beide werden von der CI beim Veroeffentlichen gesetzt; die Werte hier sind
+# der Entwicklungsstand.
+version: 0.1.0
+appVersion: "0.4.0"
+
+home: https://github.com/MvdB/southbyte-music
+sources:
+  - https://github.com/MvdB/southbyte-music
+maintainers:
+  - name: southbyte
+    url: https://southbyte.de
+
+keywords:
+  - music-generation
+  - text-to-music
+  - minimax-music3
+  - sglang
+  - gpu
+
+annotations:
+  # Das Modell steht unter einer eigenen Lizenz, die mit ihm reist und nicht
+  # mit diesem Chart. Wer das Chart installiert, laedt das Modell — deshalb
+  # steht die Auflage hier, wo sie vor der Installation sichtbar ist.
+  de.southbyte/model: MiniMaxAI/MiniMax-Music3
+  de.southbyte/model-license: >-
+    MiniMax-Music3 Community License. Kommerzielle Nutzung erlaubt, verlangt
+    aber die sichtbare Nennung von "MiniMax-Music3" in der Oberflaeche des
+    Produkts; ab 20 Mio. USD Jahresumsatz zusaetzlich eine schriftliche
+    Genehmigung von MiniMax (api@minimax.io).
+  de.southbyte/proof-of-concept: >-
+    Kein Produkt. Ohne Zusicherung von Verfuegbarkeit, Eignung oder
+    Ergebnisqualitaet, ohne Support und ohne Roadmap.

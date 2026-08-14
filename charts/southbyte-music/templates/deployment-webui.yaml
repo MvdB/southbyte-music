@@ -1,0 +1,101 @@
+{{- if .Values.webui.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "southbyte-music.fullname" . }}-webui
+  labels:
+    {{- include "southbyte-music.labels" . | nindent 4 }}
+    app.kubernetes.io/component: webui
+spec:
+  replicas: {{ .Values.webui.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "southbyte-music.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: webui
+  template:
+    metadata:
+      labels:
+        {{- include "southbyte-music.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: webui
+      annotations:
+        # Aendert sich der Endpunkt in den values, aendert sich diese Pruefsumme
+        # und die Pods werden ersetzt. Ohne das laege die alte config.js
+        # weiter im laufenden nginx, und ein 'helm upgrade' haette sichtbar
+        # nichts bewirkt.
+        checksum/config: {{ include (print $.Template.BasePath "/configmap-webui.yaml") . | sha256sum }}
+        {{- with .Values.webui.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "southbyte-music.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: webui
+          image: "{{ .Values.webui.image.repository }}:{{ .Values.webui.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.webui.image.pullPolicy }}
+          env:
+            # Ziel des Reverse-Proxy. Dadurch spricht der Browser nur eine
+            # Adresse an und der Musik-Dienst braucht keinen eigenen Weg nach
+            # aussen.
+            - name: MUSIK_DIENST
+              value: "http://{{ include "southbyte-music.fullname" . }}:{{ .Values.server.service.port }}"
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          readinessProbe:
+            httpGet: {path: /gesund, port: http}
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /gesund, port: http}
+            periodSeconds: 30
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+            # Anders als beim Server geht das hier: nginx braucht nur ein paar
+            # Schreibpfade, und die bekommt es als emptyDir.
+            readOnlyRootFilesystem: true
+          resources:
+            {{- toYaml .Values.webui.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /usr/share/nginx/html/config.js
+              subPath: config.js
+              readOnly: true
+            # Diese vier Pfade braucht nginx schreibend. Mit
+            # readOnlyRootFilesystem gibt es sie sonst nicht — der Container
+            # startet dann gar nicht erst. /tmp fehlte im ersten Entwurf und
+            # ist beim Nachstellen mit einem read-only-Container aufgefallen:
+            #   [emerg] mkdir() "/tmp/proxy_temp" failed (30: Read-only file system)
+            - {name: tmp, mountPath: /tmp}
+            - {name: cache, mountPath: /var/cache/nginx}
+            - {name: run, mountPath: /var/run}
+            # Hierhin loest der Einstiegspunkt die nginx-Vorlage auf.
+            - {name: conf, mountPath: /etc/nginx/conf.d}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "southbyte-music.fullname" . }}-webui
+        - {name: tmp, emptyDir: {}}
+        - {name: cache, emptyDir: {}}
+        - {name: run, emptyDir: {}}
+        - {name: conf, emptyDir: {}}
+      {{- with .Values.webui.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.webui.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.webui.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

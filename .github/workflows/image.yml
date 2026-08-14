@@ -1,0 +1,215 @@
+name: Images
+
+# ── Warum das ohne GPU geht ──────────────────────────────────────────────
+# Der Build fasst CUDA nicht an. Es werden Pakete installiert und eine
+# Importwache ausgefuehrt, die pruefen kann, ob torch mit CUDA-Bindung gebaut
+# ist — nicht, ob eine Karte da ist. Eine GPU braucht erst der Modellstart.
+# Deshalb baut ein gewoehnlicher Runner das Image vollstaendig, und die
+# Pruefung auf echter Hardware ist ein getrennter Schritt
+# (serving/pruefe_image.sh auf dem DGX Spark).
+#
+# ── Warum nativ und nicht per QEMU ───────────────────────────────────────
+# arm64 unter QEMU zu bauen dauert fuer diesen Stack Stunden. GitHub stellt
+# oeffentlichen Repositories native arm64-Runner (ubuntu-24.04-arm) bereit.
+# Die Matrix nutzt sie: jede Architektur baut auf ihrer eigenen Maschine, in
+# derselben Zeit wie lokal.
+#
+# ── Warum push-by-digest und ein getrennter Merge ────────────────────────
+# Zwei Laeufe koennen nicht denselben Tag schreiben, ohne sich gegenseitig zu
+# verdraengen — uebrig bliebe ein Image fuer nur eine Architektur. Stattdessen
+# legt jeder Lauf sein Ergebnis ohne Tag ab und reicht den Digest weiter; ein
+# dritter Job fasst beide zu einer Manifest-Liste zusammen. Das ist der Grund,
+# warum 'docker pull' hinterher auf beiden Architekturen das Richtige zieht.
+
+on:
+  push:
+    branches: ["main"]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  bauen:
+    strategy:
+      fail-fast: false
+      # Zwei echte Dimensionen, also vier Laeufe: zwei Komponenten auf je zwei
+      # Architekturen. (Ein erster Entwurf mischte 'include' mit einer zweiten
+      # Liste — das erweitert die Matrix, statt sie zu multiplizieren, und haette
+      # die Haelfte der Kombinationen nie gebaut.)
+      matrix:
+        plattform:
+          - {runner: ubuntu-24.04, ziel: linux/amd64, kurz: amd64}
+          - {runner: ubuntu-24.04-arm, ziel: linux/arm64, kurz: arm64}
+        komponente:
+          - {name: server, image: southbyte-music, datei: serving/Dockerfile.music, kontext: serving}
+          - {name: webui, image: southbyte-music-webui, datei: webui/Dockerfile.webui, kontext: webui}
+
+    runs-on: ${{ matrix.plattform.runner }}
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: docker/setup-buildx-action@v3
+
+      # Bei einem Pull Request wird nur gebaut, nicht veroeffentlicht — ein
+      # Fork soll nicht in die Registry schreiben duerfen.
+      - name: An GHCR anmelden
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Zeitstempel setzen
+        id: zeit
+        run: echo "wert=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
+
+      - name: Bauen und als Digest ablegen
+        id: bau
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.komponente.kontext }}
+          file: ${{ matrix.komponente.datei }}
+          platforms: ${{ matrix.plattform.ziel }}
+          cache-from: type=gha,scope=${{ matrix.komponente.name }}-${{ matrix.plattform.kurz }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.komponente.name }}-${{ matrix.plattform.kurz }}
+          build-args: |
+            VERSION=${{ github.ref_name }}
+            REVISION=${{ github.sha }}
+            CREATED=${{ steps.zeit.outputs.wert }}
+          outputs: >-
+            ${{ github.event_name == 'pull_request'
+                && 'type=cacheonly'
+                || format('type=image,name={0}/{1}/{2},push-by-digest=true,name-canonical=true,push=true',
+                          env.REGISTRY, github.repository_owner, matrix.komponente.image) }}
+
+      # Der Digest wird als leere Datei mit seinem Namen weitergereicht — der
+      # Merge-Job braucht nur die Namen, nicht den Inhalt.
+      - name: Digest ablegen
+        if: github.event_name != 'pull_request'
+        env:
+          DIGEST: ${{ steps.bau.outputs.digest }}
+        run: |
+          mkdir -p /tmp/digests
+          touch "/tmp/digests/${DIGEST#sha256:}"
+
+      - uses: actions/upload-artifact@v4
+        if: github.event_name != 'pull_request'
+        with:
+          name: digests-${{ matrix.komponente.name }}-${{ matrix.plattform.kurz }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  zusammenfassen:
+    needs: [bauen]
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        komponente:
+          - {name: server, image: southbyte-music}
+          - {name: webui, image: southbyte-music-webui}
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: digests-${{ matrix.komponente.name }}-*
+          path: /tmp/digests
+          merge-multiple: true
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Tags festlegen
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.komponente.image }}
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,format=short
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Manifest-Liste erzeugen
+        working-directory: /tmp/digests
+        env:
+          ZIEL: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.komponente.image }}
+        run: |
+          set -eu
+          mapfile -t tags < <(jq -r '.tags[]' <<< "$DOCKER_METADATA_OUTPUT_JSON")
+          args=()
+          for t in "${tags[@]}"; do args+=(-t "$t"); done
+          for d in *; do args+=("${ZIEL}@sha256:${d}"); done
+          docker buildx imagetools create "${args[@]}"
+
+      - name: Ergebnis anzeigen
+        env:
+          ZIEL: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.komponente.image }}
+        run: docker buildx imagetools inspect "${ZIEL}:${{ steps.meta.outputs.version }}"
+
+  chart:
+    # Das Chart wird geprueft, aber nicht veroeffentlicht. Ein Chart in eine
+    # OCI-Registry zu schieben ist ein eigener Schritt mit eigener Versionierung
+    # — solange die Images nicht auf Hardware bestaetigt sind, waere das eine
+    # Zusage, die niemand gedeckt hat.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.16.4
+
+      - name: helm lint
+        run: helm lint charts/southbyte-music
+
+      # Ein Chart, das nur mit den Vorgabewerten durchlaeuft, ist halb geprueft.
+      # Jede Verzweigung in den Templates bekommt hier einen eigenen Lauf.
+      - name: Alle Varianten durchtemplaten
+        run: |
+          set -eu
+          C=charts/southbyte-music
+          varianten=(
+            ""
+            "--set ingress.enabled=true"
+            "--set networkPolicy.enabled=true"
+            "--set model.download.enabled=false"
+            "--set model.persistence.existingClaim=vorhanden"
+            "--set model.persistence.enabled=false"
+            "--set webui.enabled=false"
+          )
+          for v in "${varianten[@]}"; do
+            echo "── helm template ${v:-(Vorgaben)}"
+            # shellcheck disable=SC2086
+            helm template pruef "$C" $v > /dev/null
+          done
+
+      # helm lint prueft die Vorlagen, nicht das Ergebnis. kubeconform haelt das
+      # Gerenderte gegen die echten Kubernetes-Schemata — ein Tippfehler in
+      # einem Feldnamen faellt sonst erst beim Anwenden im Cluster auf.
+      - name: Gegen die Kubernetes-Schemata pruefen
+        run: |
+          set -eu
+          KV=v0.6.7
+          curl -sSL "https://github.com/yannh/kubeconform/releases/download/${KV}/kubeconform-linux-amd64.tar.gz" \
+            | tar xz kubeconform
+          helm template pruef charts/southbyte-music \
+            --set ingress.enabled=true --set networkPolicy.enabled=true \
+            | ./kubeconform -strict -summary -kubernetes-version 1.31.0 -

@@ -1,0 +1,23 @@
+{{- if and .Values.model.persistence.enabled (not .Values.model.persistence.existingClaim) }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "southbyte-music.modelClaim" . }}
+  labels:
+    {{- include "southbyte-music.labels" . | nindent 4 }}
+  annotations:
+    # Das Volume ueberlebt eine Deinstallation bewusst. Es enthaelt 54 GB, die
+    # sonst neu geladen werden muessten — ein versehentliches 'helm uninstall'
+    # waere sonst stundenlang teuer. Wer es wirklich los wird, loescht das PVC
+    # von Hand.
+    helm.sh/resource-policy: keep
+spec:
+  accessModes:
+    - {{ .Values.model.persistence.accessMode }}
+  resources:
+    requests:
+      storage: {{ .Values.model.persistence.size }}
+  {{- with .Values.model.persistence.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+{{- end }}

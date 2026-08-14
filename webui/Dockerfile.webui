@@ -1,0 +1,52 @@
+# Die Oberflaeche als eigenes Image.
+#
+# Getrennt vom Serving-Image, und zwar aus einem handfesten Grund: das
+# Serving-Image ist mehrere Gigabyte gross und braucht eine GPU, die
+# Oberflaeche sind ein paar Kilobyte statisches HTML. Zusammen in einem Pod
+# waere jede Aenderung an einem Textfeld ein Neustart des Modells — 160 s
+# Ladezeit fuer eine geaenderte Zeile. Getrennt skalieren und aktualisieren sie
+# unabhaengig voneinander.
+#
+# nginx uebernimmt dabei zwei Aufgaben. Die erste ist das Ausliefern der
+# Dateien. Die zweite ist wichtiger: es reicht /v1/ an den Musik-Dienst weiter.
+# Damit sprechen Browser und Server dieselbe Herkunft — kein zweiter Port nach
+# aussen, kein CORS, und eine Ingress-Adresse statt zweier.
+# nginx-unprivileged statt nginx: die uebliche Variante laeuft als root und
+# legt beim Start /var/cache/nginx/client_temp an. Mit USER nginx scheitert
+# genau das ("mkdir() failed (13: Permission denied)") — der erste Versuch hier
+# ist daran gestorben. Das unprivilegierte Image ist fuer diesen Fall gebaut:
+# es horcht bereits auf 8080, kennt keine user-Direktive und bringt die
+# Schreibpfade dem Dienstnutzer gehoerend mit.
+FROM nginxinc/nginx-unprivileged:1.29-alpine
+
+# Die Vorlage wird beim Start von envsubst aufgeloest (das bringt nginx:alpine
+# ueber /docker-entrypoint.d/ schon mit). MUSIK_DIENST kommt aus dem Deployment
+# und zeigt auf den Service des Musik-Servers.
+ENV MUSIK_DIENST=http://southbyte-music:8000 \
+    NGINX_ENVSUBST_OUTPUT_DIR=/etc/nginx/conf.d
+COPY nginx.conf.template /etc/nginx/templates/default.conf.template
+
+USER root
+COPY index.html favicon.svg /usr/share/nginx/html/
+# config.js kommt in Kubernetes aus einer ConfigMap und wird hier ueberdeckt.
+# Die mitgelieferte Fassung ist die Vorgabe fuer den reinen Docker-Betrieb.
+COPY config.js /usr/share/nginx/html/config.js
+USER nginx
+
+EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
+  CMD wget -q -O /dev/null http://127.0.0.1:8080/ || exit 1
+
+ARG VERSION=dev
+ARG REVISION=unknown
+ARG CREATED=unknown
+LABEL org.opencontainers.image.title="southbyte-music-webui" \
+      org.opencontainers.image.description="Weboberflaeche fuer MiniMax-Music3, mit Reverse-Proxy auf /v1/" \
+      org.opencontainers.image.source="https://github.com/MvdB/southbyte-music" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.vendor="southbyte" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.revision="${REVISION}" \
+      org.opencontainers.image.created="${CREATED}" \
+      de.southbyte.model="MiniMaxAI/MiniMax-Music3"

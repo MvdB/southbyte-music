@@ -1,0 +1,51 @@
+southbyte-music ist installiert: {{ .Release.Name }} in {{ .Release.Namespace }}.
+
+{{- if .Values.model.download.enabled }}
+
+DER ERSTE START DAUERT.
+Der initContainer holt {{ .Values.model.repo }} — rund 54 GB. Bis der Pod
+bereit ist, vergeht die Ladezeit plus etwa 160 Sekunden fuer den Modellstart.
+Jeder weitere Start ueberspringt den Download anhand einer Marke im Volume.
+
+  kubectl -n {{ .Release.Namespace }} logs -f \
+    -l app.kubernetes.io/instance={{ .Release.Name }},app.kubernetes.io/component=server \
+    -c modell-holen
+{{- end }}
+
+Bereitschaft beobachten:
+
+  kubectl -n {{ .Release.Namespace }} rollout status \
+    deployment/{{ include "southbyte-music.fullname" . }}
+
+{{- if .Values.ingress.enabled }}
+
+Erreichbar unter:
+{{- range .Values.ingress.hosts }}
+  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}
+{{- end }}
+{{- else if .Values.webui.enabled }}
+
+Kein Ingress aktiv. Zum Ausprobieren weiterleiten:
+
+  kubectl -n {{ .Release.Namespace }} port-forward \
+    svc/{{ include "southbyte-music.fullname" . }}-webui 8080:{{ .Values.webui.service.port }}
+
+Dann http://127.0.0.1:8080 im Browser oeffnen.
+{{- else }}
+
+Die Oberflaeche ist abgeschaltet. Direkt an die API:
+
+  kubectl -n {{ .Release.Namespace }} port-forward \
+    svc/{{ include "southbyte-music.fullname" . }} 8011:{{ .Values.server.service.port }}
+{{- end }}
+
+MODELL-LIZENZ
+{{ .Values.model.repo }} steht unter der MiniMax-Music3 Community License.
+Kommerzielle Nutzung verlangt die sichtbare Nennung von "MiniMax-Music3" in der
+Oberflaeche des Produkts; ab 20 Mio. USD Jahresumsatz zusaetzlich eine
+schriftliche Genehmigung von MiniMax (api@minimax.io). Die Nennung ist in der
+mitgelieferten Oberflaeche enthalten.
+
+Proof of Concept, kein Produkt: keine Anmeldung, keine Warteschlange, keine
+Ratenbegrenzung. Wer das offen ins Netz haengt, haengt einen offenen Generator
+ins Netz.

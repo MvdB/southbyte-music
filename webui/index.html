@@ -299,6 +299,13 @@ let letzteUrl = null;
 // ein fest eingetragenes 127.0.0.1 zeigt beim Aufruf von einem anderen Rechner
 // auf dessen eigene Maschine, der Server steht aber dort, wo auch diese Seite
 // herkommt. Bei file:// gibt es keinen Host, dann bleibt localhost.
+// Ein einzelner Schraegstrich ist der dritte Fall und der fuer Kubernetes
+// wichtige: er bedeutet "gleiche Herkunft wie diese Seite". Dort liegt ein
+// Reverse-Proxy davor, der /v1/ an den Musik-Dienst weiterreicht; Browser und
+// Server teilen sich dann eine Adresse, es gibt keinen zweiten Port und kein
+// CORS. Der Schraegstrich faellt beim Abschneiden weg, uebrig bleibt der leere
+// String — und fetch("" + "/v1/…") ist genau die relative Anfrage, die wir
+// wollen.
 const ENDPUNKT = (() => {
   const konfiguriert = (window.SOUTHBYTE_MUSIC || {}).endpunkt;
   if (konfiguriert) return konfiguriert.replace(/\/+$/, "");
@@ -385,7 +392,7 @@ function laengeHinweisAktualisieren() {
         ? ` — <span style="color:var(--amber)">reicht nicht, empfohlen ${a.frames}</span>`
         : ` — empfohlen ${a.frames}`);
 }
-$("endpunkt-anzeige").textContent = ENDPUNKT;
+$("endpunkt-anzeige").textContent = ENDPUNKT || "gleiche Herkunft wie diese Seite";
 $("lyrics").addEventListener("input", laengeHinweisAktualisieren);
 $("ableiten").addEventListener("click", () => {
   $("laenge").value = textAnalysieren().frames;

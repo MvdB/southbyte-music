@@ -21,7 +21,7 @@ so explicitly — the wrong assumptions are usually the useful part.
 hf download MiniMaxAI/MiniMax-Music3 --local-dir ~/hf_models/MiniMaxAI--MiniMax-Music3
 
 # 2. Build the serving image (~2 min; the base image brings the stack)
-docker build -t spark-sglang-omni:v1 -f serving/Dockerfile.music serving/
+docker build -t southbyte-music:lokal -f serving/Dockerfile.music serving/
 
 # 3. Start the server on port 8011 (ready after ~160 s)
 cd serving && ./run_music.sh
@@ -158,13 +158,136 @@ no input field for it. It is set in `webui/config.js` and nowhere else:
 window.SOUTHBYTE_MUSIC = { endpunkt: "" };   // empty = derive from the page address
 ```
 
-Left empty, the page uses the host it was served from with port 8011 — the
-normal case. If the music server lives elsewhere, the operator puts it there.
+Three cases:
+
+| Value | Meaning |
+|---|---|
+| `""` | derive from the page address: same host, port 8011. The normal local case |
+| `"/"` | same origin as the page. For a reverse proxy in front, which is how the Kubernetes chart runs it |
+| a URL | wherever the music server actually is |
+
 The resolved endpoint is shown in the page footer, so a misconfiguration stays
 visible without being editable.
 
 The interface is in German; the code and configuration are documented in German
 too, which is the house style across this family of repositories.
+
+## Running it on Kubernetes
+
+There is a Helm chart under `charts/southbyte-music`. Two images, published to
+GHCR for `linux/amd64` and `linux/arm64`:
+
+| Image | Contents |
+|---|---|
+| `ghcr.io/mvdb/southbyte-music` | the model server (SGLang-Omni) |
+| `ghcr.io/mvdb/southbyte-music-webui` | nginx with the interface and a reverse proxy |
+
+```bash
+helm install musik charts/southbyte-music \
+  --namespace musik --create-namespace
+```
+
+The first start takes a while — see below — and the chart's `NOTES.txt` tells
+you which log to watch.
+
+### The model is not in the image
+
+It is 54 GB. An image that size is not something a cluster pulls onto a node in
+any reasonable time, and every rebuild would carry it again. In Kubernetes the
+model is *data*, not code: it lives in a PersistentVolume, and an initContainer
+fills it.
+
+That initContainer is idempotent in two stages. If the completion marker is
+present, nothing happens at all — no network traffic, and the pod starts in
+seconds. That is the normal case for every restart, rescale and node change. If
+the marker is missing, `hf download` fetches what is not there; that step is
+itself resumable, so an interrupted download continues rather than restarting.
+
+The marker is written last, on purpose. If the download breaks off, it is
+absent, and the next start picks up the thread instead of treating half a model
+as complete.
+
+The initContainer also normalises the backbone config (`model_type` from
+`mixtral` to `qwen3`). SGLang-Omni would otherwise attempt that itself at
+startup and fail against a read-only mount. Doing it here means the server can
+mount the volume read-only, which it does.
+
+### Things that will bite you if you change them
+
+**`terminationGracePeriodSeconds: 1800`.** Five minutes of music is around 27
+minutes of computation. The Kubernetes default of 30 s would cut off every
+generation in progress on any rollout, restart or node drain.
+
+**The liveness probe is the most dangerous setting in the chart.** `/health`
+does answer while a generation is running — verified; it reports the number of
+in-flight requests. If that were not the case, this probe would kill every long
+piece it was asked to produce. The thresholds are deliberately generous anyway.
+
+**The startup probe allows 600 s.** The server is ready after about 160 s
+measured. Without a startup probe, the liveness probe would have to tolerate
+that same delay and could then not detect a genuinely hung process for minutes.
+
+**`strategy: Recreate`, not RollingUpdate.** With `ReadWriteOnce` the model
+volume binds to one pod; a second would sit in Pending forever. And even with
+`ReadWriteMany`, a second pod means a second GPU.
+
+**The PVC survives `helm uninstall`** (`helm.sh/resource-policy: keep`). Those
+54 GB would otherwise have to be fetched again. Delete it by hand if you mean it.
+
+### One origin, not two
+
+nginx proxies `/v1/` through to the model server, so the browser only ever talks
+to one address. That is why `webui.endpunkt` defaults to `"/"` — same origin as
+the page. No second port to expose, no CORS, one Ingress instead of two.
+
+If you put an Ingress in front of it, raise its timeouts too. The nginx defaults
+of 60 s would return a 504 on any longer piece while the server is still happily
+working:
+
+```yaml
+ingress:
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "2400"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "2400"
+```
+
+### Building and publishing
+
+CI builds both architectures **natively** — `ubuntu-24.04` for amd64 and
+`ubuntu-24.04-arm` for arm64 — and merges the two into one manifest list. No
+QEMU, so no hours-long emulated build.
+
+**The build needs no GPU.** It installs packages and runs an import guard; CUDA
+is only touched at runtime. What CI therefore *cannot* tell you is whether the
+thing actually runs on a card. That is a separate step, on the hardware:
+
+```bash
+serving/pruefe_image.sh                                  # locally built image
+serving/pruefe_image.sh ghcr.io/mvdb/southbyte-music:main  # the published one
+```
+
+It pulls, starts, waits for readiness, generates a short piece and checks the
+WAV header — 32 kHz, stereo, plausible length. A 200 response only proves that
+something came back.
+
+Last run on the DGX Spark: ready after 166 s, 250 frames in 50 s, output 32 kHz
+stereo. The `linux/amd64` image builds but has never run anywhere — there is no
+x86 GPU here.
+
+### Security posture
+
+Non-root (uid 1000), `allowPrivilegeEscalation: false`, all capabilities
+dropped, `seccompProfile: RuntimeDefault`, no API token mounted. The web UI runs
+with `readOnlyRootFilesystem: true`; the model server does not, and that is an
+honest `false` rather than an aspirational `true` — Torch and Triton compile
+kernels at runtime and need writable paths. Those caches live in emptyDir
+volumes so nothing persists into an image layer.
+
+An optional NetworkPolicy (`networkPolicy.enabled=true`) restricts the model
+server to traffic from the web UI. It is off by default because without a CNI
+that enforces policies it does nothing but suggest safety that is not there.
+
+None of this adds authentication. See *What is deliberately missing*.
 
 ## Design decisions
 

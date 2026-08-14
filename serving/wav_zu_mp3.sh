@@ -20,7 +20,7 @@ set -euo pipefail
 EIN="${1:?Aufruf: $0 <eingabe.wav> [ausgabe.mp3] [bitrate-kbit]}"
 AUS="${2:-${EIN%.*}.mp3}"
 BITRATE="${3:-192}"
-IMAGE="${IMAGE:-spark-sglang-omni:v1}"
+IMAGE="${IMAGE:-southbyte-music:lokal}"
 
 [[ -f "$EIN" ]] || { echo "FEHLER: $EIN gibt es nicht" >&2; exit 1; }
 

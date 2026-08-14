@@ -1,0 +1,196 @@
+# Werte fuer southbyte-music.
+#
+# Die Vorgaben hier beschreiben den Fall, fuer den das Chart gebaut wurde: ein
+# Knoten mit einer GPU, das Modell in einem PersistentVolume, die Oberflaeche
+# davor. Alles, was hardwareabhaengig ist, steht kommentiert dabei — die
+# gemessenen Zahlen stammen vom DGX Spark (GB10) und sind Ausgangspunkte, keine
+# universellen Wahrheiten.
+
+nameOverride: ""
+fullnameOverride: ""
+
+image:
+  repository: ghcr.io/mvdb/southbyte-music
+  # Leer lassen: dann gilt die appVersion des Charts. Ein hier fest
+  # eingetragener Tag ueberlebt sonst das naechste Chart-Update.
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# ── Modell ───────────────────────────────────────────────────────────────
+model:
+  repo: MiniMaxAI/MiniMax-Music3
+  # Verzeichnisname im Volume. Konvention der Familie: <owner>--<model>.
+  dir: MiniMaxAI--MiniMax-Music3
+
+  persistence:
+    enabled: true
+    # Leer = das Chart legt ein PVC an. Ist bereits eines da (etwa mit einem
+    # vorbefuellten Modell), hier dessen Namen eintragen.
+    existingClaim: ""
+    # 54 GB Modell. 80 Gi laesst Luft fuer eine spaetere Version, ohne dass
+    # das Volume vergroessert werden muss.
+    size: 80Gi
+    storageClass: ""
+    # ReadOnlyMany waere schoener, geht aber nicht: der initContainer muss
+    # schreiben duerfen. Mehrere Repliken auf demselben Volume brauchen
+    # ReadWriteMany; mit ReadWriteOnce ist das Chart auf einen Knoten begrenzt.
+    accessMode: ReadWriteOnce
+
+  download:
+    # Der initContainer holt das Modell beim ersten Start und ueberspringt den
+    # Schritt danach anhand einer Fertig-Marke im Volume. Auf false setzen,
+    # wenn das Volume von aussen befuellt wird.
+    enabled: true
+    # Parallele Verbindungen beim Laden. Die Vorgabe von huggingface_hub ist
+    # hoeher und bringt kleine Cluster-Netze und NAS-Backends ins Straucheln.
+    workers: 8
+    resources:
+      requests: {cpu: "500m", memory: 1Gi}
+      limits: {cpu: "4", memory: 4Gi}
+
+# ── Musik-Server ─────────────────────────────────────────────────────────
+server:
+  replicaCount: 1
+
+  # Zusaetzliche Argumente an 'sgl-omni serve', als eine Zeichenkette.
+  extraArgs: ""
+  extraEnv: []
+
+  service:
+    type: ClusterIP
+    port: 8000
+
+  resources:
+    limits:
+      nvidia.com/gpu: 1
+      # 47 GB Gewichte plus Aktivierungen. Auf dem GB10 ist der Speicher
+      # geteilt (128 GB gesamt, rund 121 GB nutzbar), auf getrennten GPUs
+      # zaehlt hier nur der Hostspeicher — dann darf die Grenze niedriger
+      # liegen. Nachmessen, nicht abschreiben.
+      memory: 96Gi
+      cpu: "16"
+    requests:
+      nvidia.com/gpu: 1
+      memory: 32Gi
+      cpu: "4"
+
+  # ── Probes ─────────────────────────────────────────────────────────────
+  # Der Server ist nach rund 160 s bereit (gemessen). Die startupProbe deckt
+  # das mit reichlich Reserve ab; erst wenn sie durch ist, greifen die anderen
+  # beiden. Ohne sie muesste die livenessProbe dieselbe Wartezeit dulden und
+  # koennte einen wirklich haengenden Prozess minutenlang nicht erkennen.
+  startupProbe:
+    httpGet: {path: /health, port: http}
+    periodSeconds: 10
+    failureThreshold: 60      # 600 s, knapp das Vierfache der Messung
+    timeoutSeconds: 5
+
+  readinessProbe:
+    httpGet: {path: /health, port: http}
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  # ACHTUNG, die gefaehrlichste Einstellung im ganzen Chart. /health antwortet
+  # auch waehrend einer laufenden Erzeugung (geprueft: es meldet die Zahl der
+  # laufenden Anfragen mit). Waere das nicht so, wuerde diese Probe jedes
+  # laengere Stueck abschiessen. Die Schwellen sind trotzdem grosszuegig
+  # gesetzt: unter Volllast darf eine Antwort auch mal spaeter kommen, und ein
+  # zu strammer Neustart mitten in einer 27-Minuten-Rechnung kostet mehr, als
+  # eine spaet erkannte Haengepartie einbringt.
+  livenessProbe:
+    httpGet: {path: /health, port: http}
+    periodSeconds: 30
+    timeoutSeconds: 10
+    failureThreshold: 5       # 150 s ohne Antwort, bevor neu gestartet wird
+
+  # Ein laufendes Stueck soll fertig werden duerfen. Fuenf Minuten Musik sind
+  # rund 27 Minuten Rechenzeit; 1800 s decken das ab. Die Vorgabe von 30 s
+  # wuerde jede Erzeugung beim Rollout abschneiden.
+  terminationGracePeriodSeconds: 1800
+
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+
+# ── Oberflaeche ──────────────────────────────────────────────────────────
+webui:
+  enabled: true
+  replicaCount: 1
+
+  image:
+    repository: ghcr.io/mvdb/southbyte-music-webui
+    tag: ""
+    pullPolicy: IfNotPresent
+
+  service:
+    type: ClusterIP
+    port: 80
+
+  # "/" heisst: gleiche Herkunft wie die Seite. nginx reicht /v1/ an den
+  # Musik-Dienst weiter, der Browser sieht nur eine Adresse. Das ist der
+  # Grund, warum in Kubernetes kein zweiter Port nach aussen muss.
+  # Nur aendern, wenn der Musik-Dienst bewusst getrennt erreichbar sein soll.
+  endpunkt: "/"
+
+  resources:
+    requests: {cpu: "10m", memory: 32Mi}
+    limits: {cpu: "500m", memory: 128Mi}
+
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+    # Fuer nginx-ingress unbedingt setzen, sonst bricht der Ingress bei
+    # laengeren Stuecken mit 504 ab, obwohl der Server weiterrechnet:
+    # nginx.ingress.kubernetes.io/proxy-read-timeout: "2400"
+    # nginx.ingress.kubernetes.io/proxy-send-timeout: "2400"
+  hosts:
+    - host: musik.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+# ── Absicherung ──────────────────────────────────────────────────────────
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  # Ohne fsGroup gehoert das frisch angelegte Volume root, und der
+  # initContainer darf nicht hineinschreiben.
+  fsGroup: 1000
+  seccompProfile: {type: RuntimeDefault}
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities: {drop: ["ALL"]}
+  # Bewusst false und nicht true: Torch und Triton legen zur Laufzeit
+  # kompilierte Kernel ab, und die CUDA-Bibliotheken schreiben in Pfade
+  # ausserhalb von HOME. Ein readOnlyRootFilesystem waere hier eine Behauptung,
+  # die beim ersten Start zerbricht. Die Caches liegen stattdessen in
+  # emptyDir-Volumes, damit nichts davon im Image-Layer landet.
+  readOnlyRootFilesystem: false
+
+networkPolicy:
+  # Riegelt den Musik-Dienst so ab, dass nur die Oberflaeche ihn erreicht.
+  # Standardmaessig aus, weil es ohne passenden CNI wirkungslos ist und dann
+  # nur falsche Sicherheit vortaeuscht.
+  enabled: false
+
+# Zusaetzliche emptyDir-Groessen fuer die Laufzeit-Caches.
+caches:
+  sizeLimit: 8Gi

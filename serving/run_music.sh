@@ -12,7 +12,9 @@
 # Voxtral-TTS, das ueber vLLM-Omni nativ bedient wird.
 #
 # Das Image muss vorher gebaut werden (serving/Dockerfile.music):
-#   docker build -t spark-sglang-omni:v1 -f serving/Dockerfile.music serving/
+#   docker build -t southbyte-music:lokal -f serving/Dockerfile.music serving/
+# Alternativ das veroeffentlichte nehmen:
+#   IMAGE=ghcr.io/mvdb/southbyte-music:main ./run_music.sh
 # Grund: sgl-omni steckt NICHT im Standard-Image. Geprueft am 2026-08-14 in
 # lmsysorg/sglang:dev — dort gibt es nur sglang, sglang-kernel und
 # sglang-router, weder das Kommando sgl-omni noch das Modul sgl_omni.
@@ -26,14 +28,16 @@
 # zerschiessen. Dieselbe Falle wie bei vllm/vllm-omni in southbyte-tts, wo
 # die Minor-Versionen zusammenpassen muessen.
 #
-# STAND 2026-08-14: NICHT AUF HARDWARE VERIFIZIERT. Der Start auf sm_120
-# (GB10) ist ungeprueft; die Werte unten sind Ausgangspunkte, keine Messwerte.
+# Fuer Kubernetes gibt es diesen Weg nicht — dort uebernimmt das Helm-Chart
+# unter charts/southbyte-music, und das Modell holt ein initContainer in ein
+# PersistentVolume statt es einzubinden. Dieses Skript bleibt der kurze Weg
+# fuer eine einzelne Maschine.
 set -euo pipefail
 
 HF_MODELS_DIR="${HF_MODELS_DIR:-$HOME/hf_models}"
 CONTAINER_NAME="${CONTAINER_NAME:-southbyte-music}"
 HOST_PORT="${HOST_PORT:-8011}"
-IMAGE="${IMAGE:-spark-sglang-omni:v1}"
+IMAGE="${IMAGE:-southbyte-music:lokal}"
 MODEL_DIR="${MODEL_DIR:-MiniMaxAI--MiniMax-Music3}"
 SPARK_PROFILES_DIR="${SPARK_PROFILES_DIR:-$HOME/southbyte/southbyte-spark-profiles}"
 # Ueberschriebene Backbone-Config, eingeblendet ueber die read-only-Einbindung.
@@ -71,6 +75,9 @@ if docker ps -a --format '{{.Names}}' | grep -qx "${CONTAINER_NAME}"; then
   docker rm -f "${CONTAINER_NAME}" >/dev/null
 fi
 
+# Kein Kommando hinter dem Imagenamen: der Einstiegspunkt baut den Aufruf aus
+# MODEL_PATH/SERVE_PORT/EXTRA_ARGS und wird dabei selbst PID 1 — nur so kommt
+# ein SIGTERM beim Server an, statt in einer Shell zu versanden.
 echo "Starte ${MODEL_DIR} auf Port ${HOST_PORT} (Image ${IMAGE}) ..."
 docker run -d --name "${CONTAINER_NAME}" \
   --gpus all \
@@ -78,14 +85,12 @@ docker run -d --name "${CONTAINER_NAME}" \
   -p "${HOST_PORT}:8000" \
   -v "${HF_MODELS_DIR}:/hf_models:ro" \
   -v "${OVERRIDE_CONFIG}:/hf_models/${MODEL_DIR}/qwen_7B/qwen_7B/config.json:ro" \
+  -e MODEL_PATH="/hf_models/${MODEL_DIR}" \
+  -e EXTRA_ARGS="${PROFILE_EXTRA_ARGS:-}" \
   -e TRANSFORMERS_OFFLINE=1 \
   -e HF_HUB_OFFLINE=1 \
   ${PROFILE_DOCKER_ENV:+$(for kv in ${PROFILE_DOCKER_ENV}; do printf -- '-e %s ' "$kv"; done)} \
-  "${IMAGE}" \
-  sgl-omni serve \
-    --model-path "/hf_models/${MODEL_DIR}" \
-    --host 0.0.0.0 --port 8000 \
-    ${PROFILE_EXTRA_ARGS:-}
+  "${IMAGE}"
 
 cat <<EOF
 

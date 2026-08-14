@@ -1,0 +1,48 @@
+# Vorlage; ${MUSIK_DIENST} setzt der Container beim Start ein.
+server {
+    listen 8080;
+    server_name _;
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # Die Oberflaeche ist ein paar Kilobyte und aendert sich mit jedem Deploy.
+    # Caching brauchen wir dafuer nicht, ein veralteter Stand im Browser waere
+    # dagegen aergerlich.
+    location = /config.js { add_header Cache-Control "no-store"; }
+    location = /index.html { add_header Cache-Control "no-store"; }
+
+    # Eigener Endpunkt fuer die Bereitschaftspruefung. Absichtlich getrennt von
+    # /: eine readinessProbe soll die Oberflaeche pruefen, nicht in den
+    # Zugriffs-Logs untergehen.
+    location = /gesund {
+        access_log off;
+        return 200 "ok\n";
+        add_header Content-Type text/plain;
+    }
+
+    # ── Der eigentliche Zweck ────────────────────────────────────────────
+    # /v1/ geht an den Musik-Dienst. Dadurch spricht der Browser nur eine
+    # Adresse an, und config.js kann auf "/" stehen (= gleiche Herkunft).
+    location /v1/ {
+        proxy_pass ${MUSIK_DIENST}/v1/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Die entscheidenden Zeilen. Ein Stueck von fuenf Minuten rechnet auf
+        # dem GB10 rund 27 Minuten; nginx bricht sonst nach 60 Sekunden mit
+        # 504 ab, obwohl der Server voellig gesund weiterarbeitet. Der Fehler
+        # traefe ausgerechnet die langen Stuecke, also die interessanten.
+        proxy_read_timeout    2400s;
+        proxy_send_timeout    2400s;
+        proxy_connect_timeout   30s;
+
+        # Antwort ist eine Audiodatei von einigen Megabyte — nicht erst auf
+        # der Platte zwischenlagern, sondern durchreichen.
+        proxy_buffering off;
+        proxy_request_buffering off;
+        client_max_body_size 4m;
+    }
+}

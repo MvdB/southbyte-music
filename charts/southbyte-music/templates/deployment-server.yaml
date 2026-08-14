@@ -1,0 +1,139 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "southbyte-music.fullname" . }}
+  labels:
+    {{- include "southbyte-music.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+spec:
+  replicas: {{ .Values.server.replicaCount }}
+  # Recreate statt RollingUpdate: bei ReadWriteOnce kann das Modell-Volume nur
+  # an einen Pod gebunden sein, ein zweiter bliebe im Pending haengen. Und
+  # selbst mit ReadWriteMany waere ein zweiter Pod eine zweite GPU — die es
+  # auf einem Einzelknoten nicht gibt.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "southbyte-music.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: server
+  template:
+    metadata:
+      labels:
+        {{- include "southbyte-music.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: server
+      {{- with .Values.server.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "southbyte-music.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      terminationGracePeriodSeconds: {{ .Values.server.terminationGracePeriodSeconds }}
+
+      {{- if .Values.model.download.enabled }}
+      initContainers:
+        # Holt das Modell beim ersten Start ins Volume und ueberspringt den
+        # Schritt danach anhand einer Fertig-Marke. Bewusst dasselbe Image wie
+        # der Server: es bringt huggingface_hub bereits mit, also braucht es
+        # kein zweites Image und keinen zweiten Pull.
+        - name: modell-holen
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["/usr/local/bin/hole_modell.sh"]
+          env:
+            - name: MODEL_REPO
+              value: {{ .Values.model.repo | quote }}
+            - name: MODEL_DIR
+              value: {{ .Values.model.dir | quote }}
+            - name: MODEL_ROOT
+              value: /modelle
+            - name: DOWNLOAD_WORKERS
+              value: {{ .Values.model.download.workers | quote }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.model.download.resources | nindent 12 }}
+          volumeMounts:
+            - name: modelle
+              mountPath: /modelle
+            - name: cache
+              mountPath: /home/southbyte/.cache
+      {{- end }}
+
+      containers:
+        - name: server
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: MODEL_PATH
+              value: {{ include "southbyte-music.modelPath" . | quote }}
+            - name: SERVE_PORT
+              value: "8000"
+            {{- with .Values.server.extraArgs }}
+            - name: EXTRA_ARGS
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.server.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          startupProbe:
+            {{- toYaml .Values.server.startupProbe | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.server.readinessProbe | nindent 12 }}
+          livenessProbe:
+            {{- toYaml .Values.server.livenessProbe | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.server.resources | nindent 12 }}
+          volumeMounts:
+            # Der Server braucht das Modell nur zum Lesen. Geschrieben hat der
+            # initContainer, und zwar genau einmal.
+            - name: modelle
+              mountPath: /modelle
+              readOnly: true
+            - name: cache
+              mountPath: /home/southbyte/.cache
+            # Torch, Triton und die CUDA-Bibliotheken legen hier ab. Ein
+            # emptyDir statt der Schreibschicht des Containers, damit klar ist,
+            # dass nichts davon ueberdauern soll.
+            - name: tmp
+              mountPath: /tmp
+
+      volumes:
+        - name: modelle
+          {{- if .Values.model.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "southbyte-music.modelClaim" . }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: cache
+          emptyDir:
+            sizeLimit: {{ .Values.caches.sizeLimit }}
+        - name: tmp
+          emptyDir:
+            sizeLimit: {{ .Values.caches.sizeLimit }}
+
+      {{- with .Values.server.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.server.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.server.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

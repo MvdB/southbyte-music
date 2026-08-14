@@ -1,8 +1,17 @@
-# SGLang-Omni fuer MiniMax-Music3 auf dem DGX Spark (GB10, sm_120, aarch64).
+# SGLang-Omni fuer MiniMax-Music3.
+#
+# Gebaut fuer den DGX Spark (GB10, sm_120, aarch64), aber nicht daran gebunden:
+# das Basisimage gibt es fuer linux/arm64 und linux/amd64, und dieses Dockerfile
+# ist arch-neutral. Der amd64-Zweig ist ungetestet — hier steht keine x86-GPU.
+#
+# Der Build braucht KEINE GPU. Es werden nur Pakete installiert; CUDA wird erst
+# zur Laufzeit angefasst. Deshalb kann ein gewoehnlicher CI-Runner das Image
+# bauen, und die Pruefung auf echter Hardware ist ein eigener Schritt
+# (serving/pruefe_image.sh).
 #
 # Basis ist v0.5.16, weil sglang-omni exakt sglang==0.5.16 pinnt — sowohl im
 # Release 0.1.1 als auch in main. Im :dev-Image steckt sglang 0.0.0.dev1, ein
-# pip install wuerde es herunterstufen. arm64 ist fuer diesen Tag vorhanden.
+# pip install wuerde es herunterstufen und die mitgebauten Kernel zerschiessen.
 FROM lmsysorg/sglang:v0.5.16
 
 # ── Warum aus git und nicht von PyPI ─────────────────────────────────────
@@ -14,6 +23,12 @@ FROM lmsysorg/sglang:v0.5.16
 # "[Model] Support MiniMax Music 3 Model (#1521)" vom 2026-08-13 — nach dem
 # letzten Tag. Deshalb main statt PyPI.
 #
+# Auf einen Commit festgenagelt statt auf 'main': ein Image, das bei jedem Bau
+# etwas anderes enthaelt, ist kein Artefakt, sondern ein Zufall. 68abc7ee ist
+# der Stand, der am 2026-08-14 auf dem GB10 nachweislich Musik erzeugt hat.
+# Hochziehen ist ein bewusster Commit, kein Nebeneffekt eines Rebuilds.
+ARG SGLANG_OMNI_COMMIT=68abc7eec59ff7b0dce484cb501ffbbb338f9e46
+
 # --no-deps ist hier kein Trick, sondern korrekt: das Basisimage bringt den
 # kompletten gepinnten Stack schon mit (geprueft 2026-08-14) — flash-attn-4
 # 4.0.0b19, flashinfer-python 0.6.14, addict 2.4.0, imageio 2.36.0,
@@ -22,7 +37,7 @@ FROM lmsysorg/sglang:v0.5.16
 # aarch64-Wheel) und flash-attn-4 aus Quellen zu bauen; letzteres ist laut
 # southbyte-image ein >100-min-Compile ueber vier Architekturen.
 RUN pip install --no-cache-dir --no-deps \
-        "git+https://github.com/sgl-project/sglang-omni.git"
+        "git+https://github.com/sgl-project/sglang-omni.git@${SGLANG_OMNI_COMMIT}"
 
 # ── flashinfer-cubin entfernen ───────────────────────────────────────────
 # Ausdrueckliche Warnung im Kochbuch von sglang-omni (docs/cookbook/
@@ -43,4 +58,65 @@ COPY pruefe_registry.py /tmp/pruefe_registry.py
 RUN python3 /tmp/pruefe_registry.py \
  && command -v sgl-omni >/dev/null || { echo 'FEHLER: sgl-omni nicht im PATH'; exit 1; }
 
-# Kein ENTRYPOINT-Override: run_music.sh ruft 'sgl-omni serve ...' explizit auf.
+# ── Nicht als root ───────────────────────────────────────────────────────
+# Das Basisimage laeuft als root mit HOME=/root. In Kubernetes ist
+# runAsNonRoot eine uebliche Mindestforderung (Pod Security Standard
+# "restricted"), und ohne passendes HOME landen Torch- und Triton-Caches in
+# einem Verzeichnis, das der Nutzer nicht schreiben darf — der Start bricht
+# dann an einer Stelle ab, die nichts mit der Ursache zu tun hat.
+# Feste UID 1000, damit das Chart per fsGroup dieselbe Nummer setzen kann.
+# Angelegt wird hier keiner: das Ubuntu-Basisimage belegt 1000 bereits mit dem
+# Nutzer 'ubuntu', ein useradd --uid 1000 scheitert daran. Auf 1001 auszuweichen
+# waere die bequeme Antwort und die schlechtere — 1000 ist die uebliche Nummer
+# fuer den ersten Nicht-root-Nutzer, und jedes Beispiel im Netz setzt sie im
+# Chart voraus. Also wird der vorhandene Nutzer umbenannt und mitsamt seinem
+# Heimatverzeichnis verschoben (-m), statt eine zweite Nummer einzufuehren.
+RUN usermod --login southbyte --home /home/southbyte --move-home ubuntu \
+ && groupmod --new-name southbyte ubuntu \
+ && id southbyte
+ENV HOME=/home/southbyte \
+    HF_HOME=/home/southbyte/.cache/huggingface \
+    TRITON_CACHE_DIR=/home/southbyte/.cache/triton \
+    TORCHINDUCTOR_CACHE_DIR=/home/southbyte/.cache/torchinductor \
+    MODEL_PATH=/modelle/MiniMaxAI--MiniMax-Music3 \
+    SERVE_HOST=0.0.0.0 \
+    SERVE_PORT=8000 \
+    PYTHONUNBUFFERED=1
+
+COPY --chmod=0755 entrypoint.sh /usr/local/bin/entrypoint.sh
+COPY --chmod=0755 hole_modell.sh /usr/local/bin/hole_modell.sh
+
+# /modelle wird zur Laufzeit ueberdeckt (PVC, hostPath oder -v). Das Anlegen
+# hier sorgt nur dafuer, dass der Pfad auch ohne Einbindung existiert und dem
+# Dienstnutzer gehoert.
+RUN mkdir -p /modelle && chown southbyte:southbyte /modelle
+
+USER 1000:1000
+WORKDIR /home/southbyte
+EXPOSE 8000
+
+# Fuer den reinen Docker-Betrieb. Kubernetes ignoriert HEALTHCHECK und nutzt
+# stattdessen die Probes aus dem Deployment — die start-period hier entspricht
+# der startupProbe dort: der Server braucht rund 160 s, bis er antwortet.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=300s --retries=3 \
+  CMD curl -fsS "http://127.0.0.1:${SERVE_PORT}/health" || exit 1
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+
+# ── Herkunftsangaben ─────────────────────────────────────────────────────
+# Ganz zum Schluss, weil jede Aenderung an ihnen sonst alle darueber liegenden
+# Schichten ungueltig machen wuerde. Die Werte kommen aus der CI.
+ARG VERSION=dev
+ARG REVISION=unknown
+ARG CREATED=unknown
+LABEL org.opencontainers.image.title="southbyte-music" \
+      org.opencontainers.image.description="MiniMax-Music3 als OpenAI-kompatibler Dienst ueber SGLang-Omni" \
+      org.opencontainers.image.source="https://github.com/MvdB/southbyte-music" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.vendor="southbyte" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.revision="${REVISION}" \
+      org.opencontainers.image.created="${CREATED}" \
+      de.southbyte.model="MiniMaxAI/MiniMax-Music3" \
+      de.southbyte.model-license="MiniMax-Music3 Community License" \
+      de.southbyte.sglang-omni-commit="${SGLANG_OMNI_COMMIT}"

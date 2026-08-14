@@ -1,0 +1,41 @@
+{{- if .Values.ingress.enabled }}
+{{- $fullName := include "southbyte-music.fullname" . -}}
+{{- $svcName := printf "%s-webui" $fullName -}}
+{{- $svcPort := .Values.webui.service.port -}}
+{{- if not .Values.webui.enabled }}
+{{- fail "ingress.enabled=true verlangt webui.enabled=true — der Ingress zeigt auf die Oberflaeche, die /v1/ weiterreicht." }}
+{{- end }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $fullName }}
+  labels:
+    {{- include "southbyte-music.labels" . | nindent 4 }}
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- with .Values.ingress.tls }}
+  tls:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    {{- range .Values.ingress.hosts }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+          {{- range .paths }}
+          - path: {{ .path }}
+            pathType: {{ .pathType }}
+            backend:
+              service:
+                name: {{ $svcName }}
+                port:
+                  number: {{ $svcPort }}
+          {{- end }}
+    {{- end }}
+{{- end }}
