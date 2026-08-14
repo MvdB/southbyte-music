@@ -1,108 +1,140 @@
 # southbyte-music
 
-Text-zu-Musik auf dem **NVIDIA DGX Spark** (GB10 SoC, sm_120, 128 GB Unified
-Memory, aarch64) — Serving-Adapter plus schlanke Weboberfläche zum Erzeugen
-ganzer Stücke aus Text und Beschreibung.
+Text-to-music on an **NVIDIA DGX Spark** — a serving adapter for
+[MiniMaxAI/MiniMax-Music3](https://huggingface.co/MiniMaxAI/MiniMax-Music3) plus
+a small web interface that turns lyrics and a style description into a complete
+song, locally, on one machine.
 
-> **Proof of Concept — kein Produkt.** Dieses Repo zeigt, dass sich
-> MiniMax-Music3 auf einem DGX Spark betreiben lässt und wie. Es ist keine
-> Anwendung mit zugesicherter Verfügbarkeit, Eignung oder Ergebnisqualität, es
-> gibt keinen Support und keine Roadmap. Wer es nachbaut, sollte damit rechnen,
-> selbst Hand anlegen zu müssen.
->
-> **Stand 2026-08-14:** läuft. Server bereit nach 160 s, Musik erzeugt und
-> geprüft. Alle Zahlen unten sind gemessen, nicht geschätzt.
+> **Proof of concept, not a product.** This repository shows *that*
+> MiniMax-Music3 runs on a DGX Spark and *how*. There is no guaranteed
+> availability, fitness or output quality, no support and no roadmap. Expect to
+> get your hands dirty if you rebuild it.
 
-## Voraussetzungen
+Everything below was measured on the machine, not estimated or copied from a
+model card. Where a number turned out to be wrong the first time, that is said
+so explicitly — the wrong assumptions are usually the useful part.
 
-| | |
-|---|---|
-| Hardware | NVIDIA DGX Spark (GB10, sm_120, 128 GB Unified Memory, aarch64). Anderes CUDA-Gerät mit ≥ 60 GB sollte gehen, ist aber ungetestet |
-| Modell | [MiniMaxAI/MiniMax-Music3](https://huggingface.co/MiniMaxAI/MiniMax-Music3), rund 54 GB auf der Platte |
-| Laufzeit | Docker mit GPU-Zugriff |
-| Ablage | Modelle unter `~/hf_models/<owner>--<model>` (überschreibbar per `HF_MODELS_DIR`) |
-
-Das Modell wird **read-only** eingebunden; das Repo schreibt nichts in den
-Modellspeicher.
+## Quick start
 
 ```bash
-# Modell holen (Beispiel)
+# 1. Fetch the model (~54 GB on disk)
 hf download MiniMaxAI/MiniMax-Music3 --local-dir ~/hf_models/MiniMaxAI--MiniMax-Music3
 
-# Image bauen (rund 2 Minuten, das Basisimage bringt den Stack mit)
+# 2. Build the serving image (~2 min; the base image brings the stack)
 docker build -t spark-sglang-omni:v1 -f serving/Dockerfile.music serving/
+
+# 3. Start the server on port 8011 (ready after ~160 s)
+cd serving && ./run_music.sh
+curl http://127.0.0.1:8011/v1/models
+
+# 4. Serve the web interface
+python3 -m http.server 8080 --directory webui
 ```
 
-## Modell
+Then open <http://127.0.0.1:8080> and press **Musik erzeugen**. The interface
+ships with a complete example — lyrics, caption, length — so the first run needs
+no input at all.
 
-[MiniMaxAI/MiniMax-Music3](https://huggingface.co/MiniMaxAI/MiniMax-Music3) —
-hybrides System aus einem globalen 8B-LLM (Qwen3-8B-Basis) für die Struktur,
-einem lokalen 0,6B-LLM für akustische Details, 2,4B Flow-Matching und einem
-123M Flow-VAE-Decoder. Rund 47 GB Gewichte.
+Or drive the API directly; it is OpenAI-compatible:
 
-| Eigenschaft | Wert |
-|---|---|
-| Eingabe | Lyrics mit Abschnitts-Tags + Beschreibung (Genre, BPM, Tonart, Stimmung) |
-| Ausgabe | 32 kHz, 16 bit, Stereo-WAV |
-| Maximale Länge | **5 Minuten** = 7500 Frames bei 25 fps — dafür ist das Modell gebaut und trainiert. Die technische Schranke unter „Limitations“ liegt höher (9000 Frames = 6:00), aber darüber verlässt man den trainierten Bereich |
-| Kontext | 5000 Tokens Prompt |
-| Streaming | nicht unterstützt |
+```bash
+curl http://127.0.0.1:8011/v1/audio/speech \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"MiniMaxAI--MiniMax-Music3",
+       "input":"[Verse]\nGreen light rising in the engine room\n[Chorus]\nSouth Byte - a heartbeat in the wire",
+       "instructions":"Basic Attributes: bpm is 150, key is E minor, Melodic Heavy Metal.\nVocals: clean powerful female lead.",
+       "response_format":"wav","seed":7,"max_new_tokens":750}' \
+  -o song.wav
+```
 
-## Gemessen auf dem DGX Spark (GB10, 2026-08-14)
+## Requirements
 
 | | |
 |---|---|
-| Serverstart | 160 s |
-| Rechenzeit | rund **5–6× der Spieldauer**; vier Messpunkte: 250/750/1500/3839 Frames → 85/157/356/831 s |
-| Frames aus Text | rund **1,62 gesungene Silben je Sekunde** — der Beispieltext (22 Zeilen, 234 Silben) landet mit 20 % Reserve bei 4350 Frames ≈ 2:54 |
-| Vorzeitiges Ende | verifiziert: bei angeforderten 4000 Frames meldete der Server `AR done frames=3839 finish_reason=stop` — großzügig aufrunden kostet nichts |
-| Attention-Backend | `torch_sdpa` — flash-attn wird nicht gebraucht |
-| Ausgabe WAV | 32 kHz, **Stereo**, 16 bit |
-| Ausgabe MP3 | 32 kHz, **Mono**, 40 kbit/s |
+| Hardware | NVIDIA DGX Spark (GB10 SoC, sm_120, 128 GB unified memory, aarch64). Any other CUDA device with ≥ 60 GB should work, but is untested |
+| Model | [MiniMaxAI/MiniMax-Music3](https://huggingface.co/MiniMaxAI/MiniMax-Music3), ~54 GB on disk |
+| Runtime | Docker with GPU access |
+| Model store | `~/hf_models/<owner>--<model>`, overridable via `HF_MODELS_DIR` |
 
-Die Oberfläche rechnet mit **22 s Grundlast plus 0,211 s je Frame** und
-kennzeichnet das Ergebnis als Schätzung. Eine erste Fassung war nur aus den
-beiden kurzen Läufen (250 und 750 Frames) abgeleitet und lag bei 1500 Frames um
-ein Viertel zu niedrig — kurze Läufe taugen nicht zur Hochrechnung auf lange.
-Erst der vierte Messpunkt bei 3839 Frames hat die Gerade gerade gerückt.
+The model directory is mounted **read-only** — this repository never writes into
+the model store.
 
-Die Länge ist bei **7500 Frames** gedeckelt. Das `max`-Attribut hält nur die
-Pfeiltasten auf, getippt werden darf alles — deshalb deckelt die Oberfläche vor
-dem Absenden noch einmal hart. Braucht der Text mehr als 5:00, sagt sie das und
-verlangt Kürzen, statt still abzuschneiden.
+## The model
 
-**MP3 ist Mono — und das ist eine Einschränkung von sglang-omni, keine des
-Modells.** In `sglang_omni/client/audio.py` steht für alle komprimierten Formate
-`stream.layout = "mono"` fest im Code, und mehrkanalige Daten werden davor per
-`audio.mean(...)` heruntergerechnet. Der Kommentar dort nennt den Grund:
-*"Streaming chunks are mono"* — der Pfad stammt aus dem Sprach-Streaming, wo Mono
-die Norm ist. `encode_wav` behandelt zwei Kanäle dagegen korrekt.
+[MiniMaxAI/MiniMax-Music3](https://huggingface.co/MiniMaxAI/MiniMax-Music3) is a
+hybrid system: a global 8B LLM (Qwen3-8B based) for song structure, a local 0.6B
+LLM for acoustic detail, 2.4B of flow matching, and a 123M Flow-VAE decoder.
+Roughly 47 GB of weights.
 
-Bei einem Modell, dessen Ausgabe 32 kHz **Stereo** ist, halbiert der bequemste
-Ausgabeweg also die Information. Die Oberfläche hat deshalb **WAV als Vorgabe**;
-MP3 bleibt wählbar, mit dem Hinweis daneben.
+| Property | Value |
+|---|---|
+| Input | Lyrics with section tags + a caption (genre, BPM, key, mood) |
+| Output | 32 kHz, 16 bit, stereo WAV |
+| Maximum length | **5 minutes** = 7500 frames at 25 fps — that is what the model is built and trained for. The hard limit under *Limitations* is higher (9000 frames = 6:00), but past five minutes you leave the trained range |
+| Context | 5000 prompt tokens |
+| Streaming | not supported |
 
-Für ein **Stereo-MP3** wandelt `serving/wav_zu_mp3.sh` ein erzeugtes WAV um. Das
-ffmpeg dafür steckt bereits im Serving-Image, auf dem Host muss nichts
-installiert werden:
+## Measured on the DGX Spark (GB10)
+
+| | |
+|---|---|
+| Server start | 160 s |
+| Generation time | roughly **5–6× the playing time**; four data points: 250/750/1500/3839 frames → 85/157/356/831 s |
+| Frames from text | about **1.62 sung syllables per second** — the built-in example (22 lines, 234 syllables) lands at 4350 frames ≈ 2:54 with 20 % headroom |
+| Early stop | verified: asking for 4000 frames, the server reported `AR done frames=3839 finish_reason=stop` — rounding up generously is free |
+| Attention backend | `torch_sdpa` — flash-attn is never used |
+| WAV output | 32 kHz, **stereo**, 16 bit |
+| MP3 output | 32 kHz, **mono**, 40 kbit/s (see below) |
+
+The interface estimates **22 s of fixed cost plus 0.211 s per frame** and labels
+the result as an estimate. A first version was fitted to the two short runs only
+(250 and 750 frames) and came out a quarter too low at 1500 frames — short runs
+do not extrapolate to long ones. The fourth data point at 3839 frames is what
+straightened the line.
+
+Length is capped at **7500 frames**. The `max` attribute only stops the arrow
+keys, so the interface caps again before sending. If the text needs more than
+5:00, it says so and asks you to cut, rather than truncating silently.
+
+### MP3 is mono — a limitation of sglang-omni, not of the model
+
+In `sglang_omni/client/audio.py`, every compressed format is pinned to
+`stream.layout = "mono"`, and multi-channel input is averaged before it gets
+there. The comment in the code names the reason — *"Streaming chunks are mono"* —
+and it is a fair one: that path was written for speech streaming, where mono is
+the norm. `encode_wav` in the same file handles two channels correctly.
+
+For a model whose output is 32 kHz **stereo** by design, the most convenient
+output format therefore discards half the signal, silently. The interface
+defaults to **WAV** for that reason; MP3 stays available with the caveat next to
+it.
+
+For a stereo MP3, re-encode the WAV afterwards. The ffmpeg for it is already in
+the serving image, so nothing needs installing on the host:
 
 ```bash
-serving/wav_zu_mp3.sh lied.wav              # -> lied.mp3, 192 kbit/s, Stereo
-serving/wav_zu_mp3.sh lied.wav fertig.mp3 320
+serving/wav_zu_mp3.sh song.wav              # -> song.mp3, 192 kbit/s, stereo
+serving/wav_zu_mp3.sh song.wav final.mp3 320
 ```
 
-Das Skript prüft die Ausgabe und bricht ab, falls sie doch einkanalig würde.
-Ein Entwurf für einen Fehlerbericht an das Projekt liegt unter
+The script checks its own output and aborts if it came out single-channel after
+all. A draft bug report for the upstream project is in
 [`docs/upstream-issue-mono.md`](docs/upstream-issue-mono.md).
 
-**Die Caption gehört auf Englisch.** Sämtliche Beispiele des Herstellers sind
-englisch. Eine deutsche Stilbeschreibung zog das Ergebnis hörbar in Richtung
-deutschsprachiger Popmusik — aus „Melodischer Metal, 150 BPM, verzerrte
-Gitarrenwand" wurde etwas, das eher an Neue Deutsche Welle erinnerte. Dieselben
-Lyrics mit englischer Caption im Format des Kochbuchs trafen das Genre deutlich
-besser. **Die Lyrics dürfen deutsch bleiben**, nur die Beschreibung nicht.
+### Write the caption in English
 
-Format laut Kochbuch, und je konkreter desto besser:
+Every example from the vendor is in English, and it matters more than it looks.
+A German style description pulled the result audibly towards German-language pop
+— *"Melodischer Metal, 150 BPM, verzerrte Gitarrenwand"* produced something
+closer to 1980s Neue Deutsche Welle than to metal. The same lyrics with an
+English caption in the documented format hit the genre far better.
+
+Lyrics in other languages are fine; only the caption needs to be English. Two
+things to expect with German lyrics, both observed: the model sings *BYTE* as
+though it were German, and umlauts have to be transliterated or they get
+swallowed — which then looks odd in the text box.
+
+The documented caption format, and the more specific the better:
 
 ```
 Basic Attributes: bpm is 150, key is E minor, Melodic Heavy Metal.
@@ -113,140 +145,130 @@ pad under the chorus, loud and tightly compressed.
 Vocals: clean powerful female lead, layered harmonies in the chorus.
 ```
 
-## Warum SGLang-Omni und kein eigener Adapter
+## The web interface
 
-MiniMax-Music3 wird vom Hersteller über SGLang-Omni bedient und bringt dort
-`/v1/audio/speech` **nativ** mit — dieselbe OpenAI-kompatible Schnittstelle, die
-auch die TTS-Adapter der Familie sprechen. Damit braucht eine spätere Evaluation
-nur eine andere URL, und wir schreiben keinen Adapter, den es schon gibt.
+`webui/` is static — no build step, no dependencies. It offers lyrics with
+section tags, the caption, length, seed and output format, then plays the result
+and offers it for download. The length field can be derived from the lyrics.
 
-Das ist dieselbe Konstellation wie bei Voxtral-TTS in
-[southbyte-tts](https://github.com/MvdB/southbyte-tts): auch dort liefert
-vLLM-Omni den Endpoint nativ, statt dass ein eigener Server davorgesetzt wird.
-
-**Warum nicht ComfyUI** (obwohl es ein offizielles Workflow-Template gibt):
-ComfyUI verlangt eigene, umgepackte Gewichtsdateien
-(`minimax_music3_dit_fp16.safetensors`, `…_text_encoder_pruned_int8_convrot…`,
-`…_dav.safetensors`) in `models/diffusion_models/`, `models/text_encoders/` und
-`models/vae/`. Das wäre dasselbe Modell ein zweites Mal auf der Platte, in einem
-anderen Format und außerhalb von `~/hf_models` — also außerhalb der Konvention,
-dass jeder Stack denselben Modellspeicher read-only einbindet. Dazu lädt ComfyUI
-das Modell selbst, was mit dem Serving-Weg kollidiert, und ein Headless-/API-
-Betrieb ist nicht dokumentiert. Als Node-Editor zum Parameter-Ausprobieren bleibt
-es nützlich, als Fundament für eine Oberfläche zum Musikmachen nicht.
-
-## Stolpersteine, die Zeit gekostet haben
-
-**`sgl-omni` steckt nicht im Standard-Image.** In `lmsysorg/sglang:dev` finden
-sich nur `sglang`, `sglang-kernel` und `sglang-router`. SGLang-Omni ist ein
-eigenes Projekt, so wie vllm-omni neben vllm steht.
-
-**Das PyPI-Release kennt MiniMax-Music3 nicht.** Version 0.1.1 bricht beim Start
-ab mit `Config for MiniMaxMusic3ForConditionalGeneration not found in the
-pipeline config registry`. Unterstützt wird es erst seit Commit `05e268a4` vom
-2026-08-13 — daher die Installation aus `git main`.
-
-**`flashinfer-cubin` muss raus.** Das Kochbuch von sglang-omni warnt
-ausdrücklich: *"any leftover cubin wheel fails MiniMax DIT import"*. Das
-Basisimage bringt genau so ein Rest-Wheel mit.
-
-**Der Modellspeicher bleibt read-only.** sglang-omni normalisiert beim Start
-`qwen_7B/qwen_7B/config.json` (`model_type` von `mixtral` auf `qwen3`) und
-scheitert daran an der schreibgeschützten Einbindung. Statt den Speicher zu
-öffnen, blendet `run_music.sh` eine bereits normalisierte Kopie über diese eine
-Datei — die Funktion kehrt dann sofort zurück, ohne zu schreiben.
-
-**flash-attn muss nicht gebaut werden.** Das Basisimage bringt `flash-attn-4`
-mit, und der Server wählt ohnehin `torch_sdpa`. Ein Source-Build hätte laut
-southbyte-image über 100 Minuten gedauert.
-
-## Nutzung
-
-```bash
-# Modell starten (Port 8011)
-cd serving && ./run_music.sh
-
-# Bereitschaft prüfen
-curl http://127.0.0.1:8011/v1/models
-
-# Ein Stück erzeugen
-curl http://127.0.0.1:8011/v1/audio/speech \
-  -H 'Content-Type: application/json' \
-  -d '{"model":"MiniMaxAI--MiniMax-Music3",
-       "input":"[Verse]\nDer Nebel liegt noch auf dem Fluss\n[Chorus]\nUnd alles was bleibt ist ein Klang",
-       "instructions":"Ruhiger deutscher Akustik-Pop, 90 BPM, A-Moll, warme Gitarren",
-       "response_format":"wav","seed":7,"max_new_tokens":750}' \
-  -o lied.wav
-
-# Weboberfläche (rein statisch, spricht direkt den Endpoint an)
-python3 -m http.server 8080 --directory webui
-```
-
-Die Oberfläche unter `webui/index.html` bietet Lyrics mit Abschnitts-Tags,
-Caption, Länge, Seed und Format; sie spielt das Ergebnis ab und bietet es zum
-Herunterladen an.
-
-**Der Endpunkt ist Betriebssache, nicht Anwendersache.** In der Oberfläche gibt
-es dafür kein Eingabefeld — gesetzt wird er ausschließlich in
-`webui/config.js`:
+**The endpoint is an operator's concern, not the user's.** There is deliberately
+no input field for it. It is set in `webui/config.js` and nowhere else:
 
 ```js
-window.SOUTHBYTE_MUSIC = { endpunkt: "" };   // leer = aus der Seitenadresse ableiten
+window.SOUTHBYTE_MUSIC = { endpunkt: "" };   // empty = derive from the page address
 ```
 
-Bleibt der Wert leer, nimmt die Seite denselben Host, von dem sie geladen wurde,
-mit Port 8011. Das ist der Normalfall. Steht der Musik-Server woanders, trägt der
-Betreiber ihn dort ein. Der aufgelöste Endpunkt steht im Fuß der Seite, damit
-eine Fehlkonfiguration erkennbar bleibt.
+Left empty, the page uses the host it was served from with port 8011 — the
+normal case. If the music server lives elsewhere, the operator puts it there.
+The resolved endpoint is shown in the page footer, so a misconfiguration stays
+visible without being editable.
 
-## Port
+The interface is in German; the code and configuration are documented in German
+too, which is the house style across this family of repositories.
 
-| Port | Dienst |
+## Design decisions
+
+**Why SGLang-Omni instead of a custom adapter.** The vendor serves
+MiniMax-Music3 through SGLang-Omni, which exposes `/v1/audio/speech` **natively**
+— the same OpenAI-compatible interface the TTS adapters in this family already
+speak. A later evaluation harness only needs a different URL, and no adapter has
+to be written that already exists. Same shape as Voxtral-TTS in
+[southbyte-tts](https://github.com/MvdB/southbyte-tts), where vLLM-Omni provides
+the endpoint natively.
+
+**Why not ComfyUI**, despite an official workflow template existing: ComfyUI
+wants its own repacked weight files (`minimax_music3_dit_fp16.safetensors`,
+`…_text_encoder_pruned_int8_convrot…`, `…_dav.safetensors`) spread across
+`models/diffusion_models/`, `models/text_encoders/` and `models/vae/`. That is
+the same model a second time on disk, in a different format, outside the model
+store — and ComfyUI loads it itself, which collides with the serving path.
+Headless/API operation is undocumented. As a node editor for trying out
+parameters it stays useful; as the foundation for a music interface it does not.
+
+## Notes for anyone rebuilding this
+
+These cost time and are not obvious from the documentation.
+
+**`sgl-omni` is not in the standard image.** The `lmsysorg/sglang` images contain
+only `sglang`, `sglang-kernel` and `sglang-router`; there is no `sgl-omni` binary
+and no `sglang_omni` module. SGLang-Omni is a separate project, the way vllm-omni
+sits next to vllm — hence the extra install step in `serving/Dockerfile.music`.
+
+**The PyPI release does not know MiniMax-Music3.** Version 0.1.1 aborts at
+startup with `Config for MiniMaxMusic3ForConditionalGeneration not found in the
+pipeline config registry`. Support landed in commit `05e268a4` (2026-08-13),
+hence the install from `git main`.
+
+**`flashinfer-cubin` has to go.** The sglang-omni cookbook warns explicitly that
+*"any leftover cubin wheel fails MiniMax DIT import"*, and the base image ships
+exactly such a leftover wheel.
+
+**The model store stays read-only.** At startup, sglang-omni normalises
+`qwen_7B/qwen_7B/config.json` (`model_type` from `mixtral` to `qwen3`) and fails
+against a read-only mount. Rather than opening up the store, `run_music.sh`
+overlays a single pre-normalised copy of that one file — the function then
+returns immediately without writing.
+
+**flash-attn does not need building.** The base image ships `flash-attn-4`, and
+the server picks `torch_sdpa` anyway. A source build would have taken over 100
+minutes on this hardware.
+
+## Model licence — obligations you inherit
+
+MiniMax-Music3 is covered by the **MiniMax-Music3 Community License**. Commercial
+use is permitted, with two conditions:
+
+1. The name **"MiniMax-Music3"** must be clearly visible in the interface of a
+   commercial product. It appears in `webui/index.html` in both the header and
+   the footer, and CI fails if it disappears — that is a legal obligation, not
+   decoration.
+2. Above 20 M USD annual revenue, written permission from MiniMax is required
+   (`api@minimax.io`).
+
+This repository is a proof of concept and not a commercial product, so the
+section 3 obligations do not bite here. The attribution is in the interface
+anyway: anyone taking this as a starting point for something commercial already
+has it in the right place instead of tripping over it later.
+
+Generated audio and `results/` are gitignored and stay local.
+
+## What is deliberately missing
+
+**There is no authentication, no queue, no rate limiting and no persistence.**
+The interface talks to the endpoint directly and stores nothing. Putting this on
+a public network means putting an open generator on a public network — anyone
+who can reach it can spend your GPU. Fine on a private network for a proof of
+concept, not fine for anything else.
+
+Also missing: an evaluation. The other stacks in this family measure their models
+(WER for TTS, prompt fidelity for image); for music there is no metric here yet.
+What sounds good is decided by ear for now.
+
+## Ports
+
+| Port | Service |
 |---|---|
-| 8011 | `serving/run_music.sh` (MiniMax-Music3 über SGLang-Omni) |
+| 8011 | `serving/run_music.sh` (MiniMax-Music3 via SGLang-Omni) |
 
-8000–8010 sind in der Familie belegt (vLLM, TTS-Adapter, STT-Judges, Bild).
+8000–8010 are taken by the other stacks in this family (vLLM, TTS adapters, STT
+judges, image).
 
-## Lizenz des Modells
+## Part of the southbyte family
 
-MiniMax-Music3 steht unter der **MiniMax-Music3 Community License**. Kommerzielle
-Nutzung ist erlaubt, mit zwei Auflagen:
+- [southbyte-core](https://github.com/MvdB/southbyte-core) — shared index
+- [southbyte-sync](https://github.com/MvdB/southbyte-sync) — HuggingFace mirror → local model store
+- [southbyte-vllm](https://github.com/MvdB/southbyte-vllm) — vLLM runner + LLM testplan
+- [southbyte-tts](https://github.com/MvdB/southbyte-tts) — TTS/STT serving + German evaluation
+- [southbyte-image](https://github.com/MvdB/southbyte-image) — text-to-image serving + evaluation
+- [southbyte-results](https://github.com/MvdB/southbyte-results) — cross-modality results site
+- [southbyte-spark-profiles](https://github.com/MvdB/southbyte-spark-profiles) — GB10 profiles, kernels, benchmarks
+- **southbyte-music** — text-to-music *(this repository)*
 
-1. Der Name **„MiniMax-Music3"** muss in der Oberfläche eines kommerziellen
-   Produkts deutlich sichtbar sein — deshalb steht er in `webui/index.html`
-   sowohl im Kopf als auch im Fuß und nicht bloß in einer Fußnote.
-2. Ab 20 Mio. USD Jahresumsatz ist eine schriftliche Genehmigung von MiniMax
-   erforderlich (`api@minimax.io`).
+## Licence
 
-Erzeugte Audiodateien und `results/` sind per `.gitignore` ausgeschlossen und
-bleiben lokal.
-
-**Zur Einordnung:** Die Auflagen unter Abschnitt 3 der Lizenz gelten für
-kommerzielle Produkte. Dieses Repo ist ein Proof of Concept und keines. Die
-Nennung des Modellnamens steht trotzdem in der Oberfläche — wer den Code als
-Grundlage für etwas Kommerzielles nimmt, hat sie damit schon an der richtigen
-Stelle und stolpert nicht nachträglich darüber.
-
-## Was hier bewusst fehlt
-
-Kein Nutzerkonto, keine Warteschlange, keine Ratenbegrenzung, keine
-Persistenz. Die Oberfläche spricht den Endpunkt direkt an und hält nichts
-fest. Wer das ins Netz stellt, stellt einen offenen Generator ins Netz —
-für einen Proof of Concept im eigenen Netz genügt das, für alles andere nicht.
-
-Ebenfalls nicht enthalten: eine Evaluation. Die anderen Stacks dieser Familie
-messen ihre Modelle (WER für TTS, Prompt-Treue für Bild); für Musik gibt es
-hier bisher kein Maß. Was gut klingt, entscheidet vorerst das Ohr.
-
-## Teil der southbyte-Familie
-
-- [southbyte-core](https://github.com/MvdB/southbyte-core) — gemeinsamer Index
-- [southbyte-sync](https://github.com/MvdB/southbyte-sync) — HuggingFace-Spiegel → lokaler Modellspeicher
-- [southbyte-vllm](https://github.com/MvdB/southbyte-vllm) — vLLM-Runner + LLM-Testplan
-- [southbyte-tts](https://github.com/MvdB/southbyte-tts) — TTS/STT-Serving + deutsche Evaluation
-- [southbyte-image](https://github.com/MvdB/southbyte-image) — Text-zu-Bild-Serving + Evaluation
-- [southbyte-spark-profiles](https://github.com/MvdB/southbyte-spark-profiles) — GB10-Profile, Kernel, Benchmarks
-- **southbyte-music** — Text-zu-Musik *(dieses Repo)*
+Code in this repository is MIT. The model, its weights and its output are covered
+by the MiniMax-Music3 Community License linked above — that licence travels with
+the model, not with this repository.
 
 ---
 

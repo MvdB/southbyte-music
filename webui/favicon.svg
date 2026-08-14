@@ -1,20 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img"
-     aria-label="SOUTH.BYTE">
-  <!-- Wortmarke auf Tab-Groesse: bei 16 px ist "SOUTH.BYTE" nicht mehr lesbar,
-       das Erkennungsmerkmal ist der gruene Punkt. Also bleiben die beiden
-       Initialen und der Punkt dazwischen — Courier New Bold wie in der CI. -->
-  <rect width="64" height="64" rx="12" fill="#060C0A"/>
-  <rect x="1" y="1" width="62" height="62" rx="11" fill="none"
-        stroke="#1A5C38" stroke-width="2"/>
-  <!-- Matrix-Grid, stark gedaempft: bei 16 px verschwindet es, bei 64 px
-       traegt es die Herkunft mit. -->
-  <g stroke="#00E676" stroke-width="1" opacity="0.10">
-    <path d="M0 21.33H64M0 42.67H64M21.33 0V64M42.67 0V64"/>
-  </g>
-  <g font-family="Courier New, Courier, monospace" font-weight="bold"
-     font-size="30" text-anchor="middle" dominant-baseline="central">
-    <text x="20" y="34" fill="#D4EDE0">S</text>
-    <text x="33" y="36" fill="#00E676">.</text>
-    <text x="45" y="34" fill="#D4EDE0">B</text>
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="SouthByte">
+  <title>SouthByte</title>
+  <rect width="32" height="32" fill="#060C0A"/>
+  <text x="2" y="23"
+        font-family="'Courier New', Consolas, 'SF Mono', monospace"
+        font-size="16"
+        font-weight="700"
+        letter-spacing="0.5">
+    <tspan fill="#D4EDE0">S</tspan><tspan fill="#00E676">.</tspan><tspan fill="#D4EDE0">B</tspan>
+  </text>
+  <rect x="2" y="26" width="28" height="1.5" fill="#00E676" opacity="0.4"/>
 </svg>
