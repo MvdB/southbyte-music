@@ -83,8 +83,16 @@
   }
   textarea:focus, input:focus, select:focus { outline: none; border-color: var(--border-hi); }
   textarea {
-    min-height: 168px; resize: vertical;
-    font-family: var(--mono); font-size: 13px; line-height: 1.6;
+    min-height: 300px; resize: vertical;
+    font-family: var(--mono); font-size: 13px; line-height: 1.7;
+  }
+  /* Die Caption ist ein vierteiliger Strukturtext (Basic Attributes,
+     Emotional Progression, Sonics, Vocals) — einzeilig war sie unlesbar.
+     Umbruch an den Wortgrenzen, damit die vier Zeilen als solche sichtbar
+     bleiben. */
+  textarea.caption {
+    min-height: 132px; font-size: 12.5px; line-height: 1.65;
+    white-space: pre-wrap;
   }
   .reihe { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px,1fr)); gap: 16px; }
   button {
@@ -206,7 +214,10 @@ wir halten die Wache, wenn keiner mehr wacht
   <div class="karte">
     <h2>Klangbild</h2>
     <label for="beschreibung">Caption — auf Englisch, Genre, Instrumente, Tempo, Produktion</label>
-    <input id="beschreibung" value="Basic Attributes: bpm is 150, key is E minor, Melodic Heavy Metal / Symphonic Metal. Emotional Progression: driving and defiant from the first bar, palm-muted verse riff building into a soaring anthemic chorus. Sonics: heavily distorted rhythm guitars, double kick drums, aggressive snare, orchestral string pad under the chorus, loud and tightly compressed, wide stereo image. Vocals: clean powerful female lead, melodic, layered harmonies in the chorus.">
+    <textarea id="beschreibung" class="caption" spellcheck="false">Basic Attributes: bpm is 150, key is E minor, Melodic Heavy Metal / Symphonic Metal.
+Emotional Progression: driving and defiant from the first bar, palm-muted verse riff building into a soaring anthemic chorus.
+Sonics: heavily distorted rhythm guitars, double kick drums, aggressive snare, orchestral string pad under the chorus, loud and tightly compressed, wide stereo image.
+Vocals: clean powerful female lead, melodic, layered harmonies in the chorus.</textarea>
     <div class="hinweis">
       <strong>Englisch schreiben.</strong> Alle Beispiele des Herstellers sind englisch;
       eine deutsche Caption zog das Ergebnis hoerbar in Richtung deutschsprachiger
@@ -238,11 +249,7 @@ wir halten die Wache, wenn keiner mehr wacht
         <input id="seed" type="number" value="7">
         <div class="hinweis">Gleicher Seed und gleiche Eingabe ergeben dasselbe Stueck.</div>
       </div>
-      <div>
-        <label for="endpunkt">Endpunkt</label>
-        <input id="endpunkt">
-        <div class="hinweis" id="endpunkt-hinweis"></div>
-      </div>
+
     </div>
 
     <div style="margin-top:20px;display:flex;gap:16px;align-items:center;flex-wrap:wrap">
@@ -266,7 +273,8 @@ wir halten die Wache, wenn keiner mehr wacht
 <footer>
   <div>
     Erzeugt mit MiniMax-Music3 · SOUTH<span style="color:var(--green)">.</span>BYTE
-    · <span class="version">v0.2.0 — 2026-08-14</span>
+    · <span class="version">v0.3.0 — 2026-08-14</span>
+    · <span class="version" id="endpunkt-anzeige"></span>
   </div>
   <div class="poc">
     Proof of Concept, kein Produkt. Ohne Zusicherung von Verfuegbarkeit,
@@ -274,20 +282,23 @@ wir halten die Wache, wenn keiner mehr wacht
   </div>
 </footer>
 
+<script src="config.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 let letzteUrl = null;
 
-// ── Endpunkt aus der Adresse der Seite ableiten ───────────────────────────
-// Ein fest eingetragenes 127.0.0.1 zeigt beim Aufruf von einem anderen Rechner
-// auf dessen eigene Maschine. Der Musik-Server steht dort, wo auch diese Seite
+// ── Endpunkt bestimmen ───────────────────────────────────────────────────
+// Kein Eingabefeld: welcher Server die Musik erzeugt, ist Betriebssache und
+// geht den Anwender nichts an. Gesetzt wird er ausschliesslich in config.js.
+// Ist er dort leer, leitet die Seite ihn aus ihrer eigenen Adresse ab —
+// ein fest eingetragenes 127.0.0.1 zeigt beim Aufruf von einem anderen Rechner
+// auf dessen eigene Maschine, der Server steht aber dort, wo auch diese Seite
 // herkommt. Bei file:// gibt es keinen Host, dann bleibt localhost.
-(function endpunktVorbelegen() {
+const ENDPUNKT = (() => {
+  const konfiguriert = (window.SOUTHBYTE_MUSIC || {}).endpunkt;
+  if (konfiguriert) return konfiguriert.replace(/\/+$/, "");
   const host = location.hostname;
-  $("endpunkt").value = host ? `${location.protocol}//${host}:8011` : "http://127.0.0.1:8011";
-  $("endpunkt-hinweis").textContent = host
-    ? "aus der Adresse dieser Seite abgeleitet (Port 8011)"
-    : "lokal geoeffnet — Endpunkt ggf. anpassen";
+  return host ? `${location.protocol}//${host}:8011` : "http://127.0.0.1:8011";
 })();
 
 // ── Zeitschaetzung ───────────────────────────────────────────────────────
@@ -349,6 +360,7 @@ function laengeHinweisAktualisieren() {
       ? ` — <span style="color:var(--amber)">reicht nicht, empfohlen ${a.frames}</span>`
       : ` — empfohlen ${a.frames}`);
 }
+$("endpunkt-anzeige").textContent = ENDPUNKT;
 $("lyrics").addEventListener("input", laengeHinweisAktualisieren);
 $("ableiten").addEventListener("click", () => {
   $("laenge").value = textAnalysieren().frames;
@@ -360,7 +372,7 @@ laengeHinweisAktualisieren();
 // ── Erzeugung ────────────────────────────────────────────────────────────
 $("los").addEventListener("click", async () => {
   const knopf = $("los"), status = $("status");
-  const basis = $("endpunkt").value.replace(/\/+$/, "");
+
   const frames = Number($("laenge").value);
   const format = $("format").value;
   const erwartet = schaetzung(frames);
@@ -395,7 +407,7 @@ $("los").addEventListener("click", async () => {
   }, 500);
 
   try {
-    const antwort = await fetch(basis + "/v1/audio/speech", {
+    const antwort = await fetch(ENDPUNKT + "/v1/audio/speech", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

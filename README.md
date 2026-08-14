@@ -176,9 +176,22 @@ curl http://127.0.0.1:8011/v1/audio/speech \
 python3 -m http.server 8080 --directory webui
 ```
 
-Die Oberfläche unter `webui/index.html` bietet Textfeld mit Abschnitts-Tags,
-Beschreibung, Länge, Seed und Endpunkt; sie spielt das Ergebnis ab und bietet es
-zum Herunterladen an.
+Die Oberfläche unter `webui/index.html` bietet Lyrics mit Abschnitts-Tags,
+Caption, Länge, Seed und Format; sie spielt das Ergebnis ab und bietet es zum
+Herunterladen an.
+
+**Der Endpunkt ist Betriebssache, nicht Anwendersache.** In der Oberfläche gibt
+es dafür kein Eingabefeld — gesetzt wird er ausschließlich in
+`webui/config.js`:
+
+```js
+window.SOUTHBYTE_MUSIC = { endpunkt: "" };   // leer = aus der Seitenadresse ableiten
+```
+
+Bleibt der Wert leer, nimmt die Seite denselben Host, von dem sie geladen wurde,
+mit Port 8011. Das ist der Normalfall. Steht der Musik-Server woanders, trägt der
+Betreiber ihn dort ein. Der aufgelöste Endpunkt steht im Fuß der Seite, damit
+eine Fehlkonfiguration erkennbar bleibt.
 
 ## Port
 
