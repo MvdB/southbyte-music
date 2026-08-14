@@ -19,8 +19,10 @@ name: Images
 # bringt 24,6 GB mit. Ein GitHub-Runner hat auf / rund 14 GB frei; der erste
 # Lauf ist genau daran gestorben ("No space left on device", und zwar so
 # gruendlich, dass der Runner nicht einmal mehr sein eigenes Log schreiben
-# konnte). Deshalb wird vor dem Bauen Platz geschaffen und die Docker-Ablage
-# auf die grosse zweite Platte gelegt.
+# konnte). Eine zweite Platte, auf die man ausweichen koennte, gibt es nicht:
+# /mnt liegt auf demselben Dateisystem wie /. Es hilft also nur Wegraeumen —
+# Android-SDK, hostedtoolcache, dotnet, ghcup, Swift und die vorinstallierten
+# Docker-Images sind zusammen rund 25 GB, die dieser Build nie anfasst.
 #
 # ── Warum kein GHA-Cache ─────────────────────────────────────────────────
 # Der Actions-Cache fasst 10 GB je Repository. Ein 26-GB-Image passt da nicht
@@ -75,22 +77,49 @@ jobs:
         if: matrix.komponente.name == 'server'
         run: |
           set -eu
-          echo "── vorher ──"; df -h / /mnt 2>/dev/null || df -h /
-          # Vorinstalliertes, das dieser Build nie anfasst.
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
-                      /opt/hostedtoolcache/CodeQL /usr/local/share/boost || true
-          # Die zweite Platte des Runners ist gross und leer. Docker dorthin
-          # umzuhaengen bringt mehr als jedes Aufraeumen auf /.
-          if [ -d /mnt ] && [ "$(df --output=avail -k /mnt | tail -1)" -gt 40000000 ]; then
+          echo "── vorher ──"; df -h /
+          # Vorinstalliertes, das dieser Build nie anfasst — zusammen rund 25 GB.
+          sudo rm -rf \
+            /usr/local/lib/android \
+            /opt/hostedtoolcache \
+            /usr/share/dotnet \
+            /usr/local/.ghcup \
+            /opt/ghc \
+            /usr/share/swift \
+            /usr/local/share/powershell \
+            /usr/local/share/chromium \
+            /usr/local/share/boost || true
+          sudo docker image prune -af >/dev/null 2>&1 || true
+
+          # Eine zweite Platte nur dann nutzen, wenn es wirklich eine ist.
+          # Der zweite Versuch hat hier nur auf freien Platz geprueft, /mnt fuer
+          # gross genug befunden und Docker dorthin verschoben — auf den Runnern
+          # ist /mnt aber dasselbe Dateisystem wie / (beide /dev/root, 72 GB).
+          # Gewonnen war damit nichts; arm64 lief nur durch, weil dort zufaellig
+          # genug frei war. Also den Geraetenamen vergleichen, nicht den Platz.
+          WURZEL="$(df --output=source / | tail -1)"
+          ZWEITE="$(df --output=source /mnt 2>/dev/null | tail -1 || echo "${WURZEL}")"
+          if [ "${ZWEITE}" != "${WURZEL}" ]; then
             sudo systemctl stop docker
             sudo mkdir -p /mnt/docker
             printf '{"data-root": "/mnt/docker"}\n' | sudo tee /etc/docker/daemon.json
             sudo systemctl start docker
-            echo "Docker-Ablage liegt jetzt auf /mnt"
+            echo "Eigene zweite Platte gefunden (${ZWEITE}) — Docker liegt jetzt dort."
           else
-            echo "Keine brauchbare zweite Platte — es bleibt beim Aufraeumen."
+            echo "/mnt ist dasselbe Dateisystem wie / — es bleibt beim Aufraeumen."
           fi
-          echo "── nachher ──"; df -h / /mnt 2>/dev/null || df -h /
+
+          echo "── nachher ──"; df -h /
+          # Lieber hier mit einer klaren Ansage abbrechen als spaeter mitten im
+          # Build, wo der Runner nicht einmal mehr sein eigenes Log schreiben
+          # kann. Bedarf: rund 10 GB komprimierte Basisschichten plus 24,6 GB
+          # entpackt.
+          FREI="$(df --output=avail -k / | tail -1)"
+          if [ "${FREI}" -lt 40000000 ]; then
+            echo "FEHLER: nur $((FREI / 1048576)) GB frei. Fuer ein 26,5-GB-Image zu wenig." >&2
+            exit 1
+          fi
+          echo "$((FREI / 1048576)) GB frei — reicht."
 
       - uses: docker/setup-buildx-action@v3
 
