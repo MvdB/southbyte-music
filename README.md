@@ -44,7 +44,7 @@ einem lokalen 0,6B-LLM für akustische Details, 2,4B Flow-Matching und einem
 |---|---|
 | Eingabe | Lyrics mit Abschnitts-Tags + Beschreibung (Genre, BPM, Tonart, Stimmung) |
 | Ausgabe | 32 kHz, 16 bit, Stereo-WAV |
-| Maximale Länge | 5 Minuten (9000 akustische Frames bei 25 fps) |
+| Maximale Länge | **5 Minuten** = 7500 Frames bei 25 fps — dafür ist das Modell gebaut und trainiert. Die technische Schranke unter „Limitations“ liegt höher (9000 Frames = 6:00), aber darüber verlässt man den trainierten Bereich |
 | Kontext | 5000 Tokens Prompt |
 | Streaming | nicht unterstützt |
 
@@ -54,16 +54,22 @@ einem lokalen 0,6B-LLM für akustische Details, 2,4B Flow-Matching und einem
 |---|---|
 | Serverstart | 160 s |
 | Rechenzeit | rund **5–6× der Spieldauer**; vier Messpunkte: 250/750/1500/3839 Frames → 85/157/356/831 s |
-| Frames aus Text | rund **1,62 gesungene Silben je Sekunde** — 22 Zeilen mit 212 Silben brauchen etwa 3300 Frames |
+| Frames aus Text | rund **1,62 gesungene Silben je Sekunde** — der Beispieltext (22 Zeilen, 234 Silben) landet mit 20 % Reserve bei 4350 Frames ≈ 2:54 |
 | Vorzeitiges Ende | verifiziert: bei angeforderten 4000 Frames meldete der Server `AR done frames=3839 finish_reason=stop` — großzügig aufrunden kostet nichts |
 | Attention-Backend | `torch_sdpa` — flash-attn wird nicht gebraucht |
 | Ausgabe WAV | 32 kHz, **Stereo**, 16 bit |
 | Ausgabe MP3 | 32 kHz, **Mono**, 40 kbit/s |
 
-Drei Messpunkte für die Laufzeit: 250 Frames → 85 s, 750 → 157 s, 1500 → 356 s.
-Der Zusammenhang ist **nicht linear** — die Rechenzeit wächst überproportional.
-Die Oberfläche schätzt daraus mit rund 15 s Grundlast plus 0,22 s je Frame und
-kennzeichnet die Schätzung als solche.
+Die Oberfläche rechnet mit **22 s Grundlast plus 0,211 s je Frame** und
+kennzeichnet das Ergebnis als Schätzung. Eine erste Fassung war nur aus den
+beiden kurzen Läufen (250 und 750 Frames) abgeleitet und lag bei 1500 Frames um
+ein Viertel zu niedrig — kurze Läufe taugen nicht zur Hochrechnung auf lange.
+Erst der vierte Messpunkt bei 3839 Frames hat die Gerade gerade gerückt.
+
+Die Länge ist bei **7500 Frames** gedeckelt. Das `max`-Attribut hält nur die
+Pfeiltasten auf, getippt werden darf alles — deshalb deckelt die Oberfläche vor
+dem Absenden noch einmal hart. Braucht der Text mehr als 5:00, sagt sie das und
+verlangt Kürzen, statt still abzuschneiden.
 
 **MP3 ist Mono — und das ist eine Einschränkung von sglang-omni, keine des
 Modells.** In `sglang_omni/client/audio.py` steht für alle komprimierten Formate

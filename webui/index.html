@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SOUTH.BYTE — Musik</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
 <style>
   /* SouthByte Web-CI. Tokens aus references/web-ci.md des southbyte-brand-Skills.
      Bewusst nur Dark: die CI kennt fuer Web kein Light-Theme. */
@@ -170,44 +171,48 @@
     <textarea id="lyrics" spellcheck="false">[Intro]
 
 [Verse]
-Im Maschinenraum brennt gruenes Licht
-tausend Kerne, die der Schlaf nicht bricht
-Daten fallen wie ein Regen aus Blei
-und der Suedwind traegt die Stimmen herbei
+Green light rising in the engine room
+ten thousand cores that never rest
+they told us that the future writes itself
+we came to put that claim to test
 
 [Pre-Chorus]
-Zaehl die Bytes, die keiner zaehlt
-zaehl die Wahrheit, die man dir verschweigt
+Count the bytes that no one counts
+name the hand behind the machine
 
 [Chorus]
-SOUTH BYTE - im Herzen der Maschine
-SOUTH BYTE - ein Funke in der Nacht
-wir schreiben die Regeln, bevor sie uns schreiben
-wir halten die Wache, wenn keiner mehr wacht
+South Byte - a heartbeat in the wire
+South Byte - a spark against the night
+we write the rules before the rules rewrite us
+we keep the watch and we keep the record right
 
 [Verse]
-Kein Orakel und kein Glanz aus Glas
-nur der Strom und das, was wirklich war
-Wer die Antwort kennt, bevor er fragt
-hat die Frage laengst schon abgesagt
+No oracle behind a pane of glass
+no prophecy we have to buy
+just current, consequence and evidence
+and someone who will answer why
 
 [Bridge]
-Zwischen Null und Eins liegt keine Gnade
-nur Entscheidung, nur Verantwortung
-und im Serverlicht, da steht sie wach
-die Hand am Schalter, ruhig und stark
+They sold us a ruin and they called it fate
+a burning sky, a story with no door
+but every switch still answers to a hand
+and that is what we're standing for
 
 [Chorus]
-SOUTH BYTE - im Herzen der Maschine
-SOUTH BYTE - ein Funke in der Nacht
-wir schreiben die Regeln, bevor sie uns schreiben
-wir halten die Wache, wenn keiner mehr wacht
+South Byte - a heartbeat in the wire
+South Byte - a spark against the night
+we write the rules before the rules rewrite us
+we keep the watch and we keep the record right
 
 [Outro]
 </textarea>
     <div class="hinweis">
       <code>[Intro]</code> <code>[Verse]</code> <code>[Chorus]</code> <code>[Bridge]</code> <code>[Outro]</code> —
-      jedes Tag auf eigener Zeile. Text daneben wird beim Normalisieren verworfen.
+      jedes Tag auf eigener Zeile. Text daneben wird beim Normalisieren verworfen.<br>
+      Der Beispieltext ist englisch, und das aus zwei Gruenden: das Modell singt
+      <em>BYTE</em> in deutschem Umfeld wie „biet“, und deutsche Umlaute muessen
+      man umschreiben, damit nichts verschluckt wird — was im Text dann seltsam
+      aussieht. Deutsche Lyrics gehen trotzdem, wenn man damit leben kann.
     </div>
   </div>
 
@@ -228,7 +233,7 @@ Vocals: clean powerful female lead, melodic, layered harmonies in the chorus.</t
     <div class="reihe" style="margin-top:16px">
       <div>
         <label for="laenge">Laenge — Frames</label>
-        <input id="laenge" type="number" value="3900" min="100" max="9000" step="50">
+        <input id="laenge" type="number" value="3900" min="100" max="7500" step="50">
         <div class="hinweis" id="laenge-hinweis"></div>
         <button type="button" id="ableiten" class="klein">aus Text ableiten</button>
       </div>
@@ -273,7 +278,7 @@ Vocals: clean powerful female lead, melodic, layered harmonies in the chorus.</t
 <footer>
   <div>
     Erzeugt mit MiniMax-Music3 · SOUTH<span style="color:var(--green)">.</span>BYTE
-    · <span class="version">v0.3.0 — 2026-08-14</span>
+    · <span class="version">v0.4.0 — 2026-08-15</span>
     · <span class="version" id="endpunkt-anzeige"></span>
   </div>
   <div class="poc">
@@ -332,6 +337,16 @@ const mmss = s => `${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,"0"
 const SILBEN_JE_SEKUNDE = 1.62;
 const RESERVE = 1.2;
 
+// ── Obergrenze ───────────────────────────────────────────────────────────
+// Die Modelcard nennt zwei verschiedene Zahlen, und nur eine davon ist die
+// nuetzliche: unter "Limitations" steht die technische Schranke von 9.000
+// akustischen Frames (360 s), in der Beschreibung steht aber zweimal, wofuer
+// das Modell gebaut und trainiert wurde — "complete songs up to five minutes".
+// Darueber hinaus zu fahren heisst, den trainierten Bereich zu verlassen, und
+// kostet bei 0,211 s je Frame auch noch fuenf Minuten Rechenzeit obendrauf.
+// Also ist bei 5:00 Schluss: 300 s * 25 fps = 7.500 Frames.
+const MAX_FRAMES = 7500;
+
 function silbenZaehlen(zeile) {
   // Grob: Vokalgruppen. Fuer eine Laengenschaetzung genau genug.
   const s = zeile.toLowerCase().replace(/[^a-zäöüß]/g, " ");
@@ -344,8 +359,11 @@ function textAnalysieren() {
   const abschnitte = zeilen.filter(z => z.startsWith("[")).length;
   const silben = gesungen.reduce((n, z) => n + silbenZaehlen(z), 0);
   const sekunden = silben / SILBEN_JE_SEKUNDE;
+  const roh = Math.ceil(sekunden * 25 * RESERVE / 50) * 50;
+  // roh mitgeben, damit der Hinweis den Unterschied zwischen "empfohlen" und
+  // "passt nicht mehr rein" benennen kann, statt still auf 7.500 zu deckeln.
   return { gesungen: gesungen.length, abschnitte, silben,
-           frames: Math.min(9000, Math.ceil(sekunden * 25 * RESERVE / 50) * 50) };
+           roh, frames: Math.min(MAX_FRAMES, roh) };
 }
 
 function laengeHinweisAktualisieren() {
@@ -354,11 +372,18 @@ function laengeHinweisAktualisieren() {
   const a = textAnalysieren();
   const knapp = frames < a.frames / RESERVE;     // reicht nicht mal ohne Reserve
   $("laenge-hinweis").innerHTML =
-    `${audio.toFixed(0)} s Audio · geschaetzt ${mmss(schaetzung(frames))} Rechenzeit<br>` +
+    `${mmss(audio)} Audio · geschaetzt ${mmss(schaetzung(frames))} Rechenzeit<br>` +
+    (frames > MAX_FRAMES
+      ? `<span style="color:var(--amber)">ueber der Modellgrenze — ` +
+        `hoechstens ${MAX_FRAMES} Frames (5:00)</span><br>`
+      : "") +
     `Text: ${a.gesungen} Zeilen, ${a.silben} Silben` +
-    (knapp
-      ? ` — <span style="color:var(--amber)">reicht nicht, empfohlen ${a.frames}</span>`
-      : ` — empfohlen ${a.frames}`);
+    (a.roh > MAX_FRAMES
+      ? ` — <span style="color:var(--amber)">braucht rund ${mmss(a.roh / 25)}, ` +
+        `das Modell kann 5:00. Kuerzen.</span>`
+      : knapp
+        ? ` — <span style="color:var(--amber)">reicht nicht, empfohlen ${a.frames}</span>`
+        : ` — empfohlen ${a.frames}`);
 }
 $("endpunkt-anzeige").textContent = ENDPUNKT;
 $("lyrics").addEventListener("input", laengeHinweisAktualisieren);
@@ -373,7 +398,14 @@ laengeHinweisAktualisieren();
 $("los").addEventListener("click", async () => {
   const knopf = $("los"), status = $("status");
 
-  const frames = Number($("laenge").value);
+  // Das max-Attribut haelt nur die Pfeiltasten auf, getippt werden darf alles.
+  // Vor dem Absenden also hart deckeln — sonst laeuft eine halbe Stunde
+  // Rechenzeit in einen Bereich, fuer den das Modell nicht gebaut ist.
+  const frames = Math.min(MAX_FRAMES, Math.max(100, Number($("laenge").value) || 0));
+  if (frames !== Number($("laenge").value)) {
+    $("laenge").value = frames;
+    laengeHinweisAktualisieren();
+  }
   const format = $("format").value;
   const erwartet = schaetzung(frames);
 
