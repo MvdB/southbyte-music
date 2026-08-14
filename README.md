@@ -4,10 +4,8 @@ Text-zu-Musik auf dem **NVIDIA DGX Spark** (GB10 SoC, sm_120, 128 GB Unified
 Memory, aarch64) — Serving-Adapter plus schlanke Weboberfläche zum Erzeugen
 ganzer Stücke aus Text und Beschreibung.
 
-> **Status 2026-08-14: Gerüst, noch nicht auf Hardware verifiziert.**
-> Weder der SGLang-Omni-Start auf sm_120 noch die arm64-Tauglichkeit des Images
-> sind bisher geprüft. Die Werte in `serving/run_music.sh` sind Ausgangspunkte,
-> keine Messwerte.
+> **Status 2026-08-14: läuft auf dem DGX Spark.** Server bereit nach 160 s,
+> Musik erzeugt und geprüft. Alle Angaben unten sind gemessen, nicht geschätzt.
 
 ## Modell
 
@@ -23,6 +21,25 @@ einem lokalen 0,6B-LLM für akustische Details, 2,4B Flow-Matching und einem
 | Maximale Länge | 5 Minuten (9000 akustische Frames bei 25 fps) |
 | Kontext | 5000 Tokens Prompt |
 | Streaming | nicht unterstützt |
+
+## Gemessen auf dem DGX Spark (GB10, 2026-08-14)
+
+| | |
+|---|---|
+| Serverstart | 160 s |
+| Rechenzeit | rund **6× der Spieldauer** (60 s Audio in 356 s) |
+| Attention-Backend | `torch_sdpa` — flash-attn wird nicht gebraucht |
+| Ausgabe WAV | 32 kHz, **Stereo**, 16 bit |
+| Ausgabe MP3 | 32 kHz, **Mono**, 40 kbit/s |
+
+Drei Messpunkte für die Laufzeit: 250 Frames → 85 s, 750 → 157 s, 1500 → 356 s.
+Der Zusammenhang ist **nicht linear** — die Rechenzeit wächst überproportional.
+Die Oberfläche schätzt daraus mit rund 15 s Grundlast plus 0,22 s je Frame und
+kennzeichnet die Schätzung als solche.
+
+**MP3 ist Mono.** Der Server kodiert `mp3`, `flac` und `opus` einkanalig, nur
+`wav` behält das Stereobild. Die Oberfläche bietet deshalb beides an, mit MP3 als
+Vorgabe für den Versand und WAV für die volle Qualität.
 
 ## Warum SGLang-Omni und kein eigener Adapter
 
@@ -45,6 +62,31 @@ dass jeder Stack denselben Modellspeicher read-only einbindet. Dazu lädt ComfyU
 das Modell selbst, was mit dem Serving-Weg kollidiert, und ein Headless-/API-
 Betrieb ist nicht dokumentiert. Als Node-Editor zum Parameter-Ausprobieren bleibt
 es nützlich, als Fundament für eine Oberfläche zum Musikmachen nicht.
+
+## Stolpersteine, die Zeit gekostet haben
+
+**`sgl-omni` steckt nicht im Standard-Image.** In `lmsysorg/sglang:dev` finden
+sich nur `sglang`, `sglang-kernel` und `sglang-router`. SGLang-Omni ist ein
+eigenes Projekt, so wie vllm-omni neben vllm steht.
+
+**Das PyPI-Release kennt MiniMax-Music3 nicht.** Version 0.1.1 bricht beim Start
+ab mit `Config for MiniMaxMusic3ForConditionalGeneration not found in the
+pipeline config registry`. Unterstützt wird es erst seit Commit `05e268a4` vom
+2026-08-13 — daher die Installation aus `git main`.
+
+**`flashinfer-cubin` muss raus.** Das Kochbuch von sglang-omni warnt
+ausdrücklich: *"any leftover cubin wheel fails MiniMax DIT import"*. Das
+Basisimage bringt genau so ein Rest-Wheel mit.
+
+**Der Modellspeicher bleibt read-only.** sglang-omni normalisiert beim Start
+`qwen_7B/qwen_7B/config.json` (`model_type` von `mixtral` auf `qwen3`) und
+scheitert daran an der schreibgeschützten Einbindung. Statt den Speicher zu
+öffnen, blendet `run_music.sh` eine bereits normalisierte Kopie über diese eine
+Datei — die Funktion kehrt dann sofort zurück, ohne zu schreiben.
+
+**flash-attn muss nicht gebaut werden.** Das Basisimage bringt `flash-attn-4`
+mit, und der Server wählt ohnehin `torch_sdpa`. Ein Source-Build hätte laut
+southbyte-image über 100 Minuten gedauert.
 
 ## Nutzung
 

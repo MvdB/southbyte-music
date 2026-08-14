@@ -36,6 +36,19 @@ HOST_PORT="${HOST_PORT:-8011}"
 IMAGE="${IMAGE:-spark-sglang-omni:v1}"
 MODEL_DIR="${MODEL_DIR:-MiniMaxAI--MiniMax-Music3}"
 SPARK_PROFILES_DIR="${SPARK_PROFILES_DIR:-$HOME/southbyte/southbyte-spark-profiles}"
+# Ueberschriebene Backbone-Config, eingeblendet ueber die read-only-Einbindung.
+# Grund: sglang-omni normalisiert beim Start qwen_7B/qwen_7B/config.json und
+# setzt model_type von "mixtral" auf "qwen3", damit HuggingFace eine
+# Qwen3-Config aufloest. Dafuer schreibt es eine .bak und die Datei neu — im
+# read-only eingebundenen Modellspeicher scheitert das mit
+#   OSError: [Errno 30] Read-only file system
+# Die Funktion kehrt aber sofort zurueck, wenn model_type bereits "qwen3" ist.
+# Deshalb blenden wir eine bereits normalisierte Kopie ueber die eine Datei;
+# der Modellspeicher bleibt unangetastet und weiterhin read-only. Die
+# Alternative waere gewesen, ~/hf_models beschreibbar einzubinden — das
+# widerspraeche der Konvention der ganzen Familie und liesse ein Werkzeug in
+# den vom Sync verwalteten Speicher schreiben.
+OVERRIDE_CONFIG="${OVERRIDE_CONFIG:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/overrides/qwen_7B_config.json}"
 
 # Profil (Sampling, Laenge, Speicher) fuer dieses Modell laden, falls vorhanden.
 PROFILE="${SPARK_PROFILES_DIR}/music/${MODEL_DIR}/music_profile.conf"
@@ -64,6 +77,7 @@ docker run -d --name "${CONTAINER_NAME}" \
   --ipc=host \
   -p "${HOST_PORT}:8000" \
   -v "${HF_MODELS_DIR}:/hf_models:ro" \
+  -v "${OVERRIDE_CONFIG}:/hf_models/${MODEL_DIR}/qwen_7B/qwen_7B/config.json:ro" \
   -e TRANSFORMERS_OFFLINE=1 \
   -e HF_HUB_OFFLINE=1 \
   ${PROFILE_DOCKER_ENV:+$(for kv in ${PROFILE_DOCKER_ENV}; do printf -- '-e %s ' "$kv"; done)} \

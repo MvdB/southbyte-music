@@ -1,29 +1,46 @@
 # SGLang-Omni fuer MiniMax-Music3 auf dem DGX Spark (GB10, sm_120, aarch64).
 #
-# Basis ist bewusst v0.5.16 und nicht :dev — sglang-omni 0.1.1 pinnt exakt
-# sglang==0.5.16 und torch==2.11.0. Im :dev-Image steckt sglang 0.0.0.dev1,
-# ein pip install wuerde es herunterstufen und die dort gebauten Kernel
-# zerschiessen. Dieselbe Versionskopplung wie bei vllm/vllm-omni in
-# southbyte-tts, wo die Minor-Versionen zusammenpassen muessen.
-#
-# arm64 ist fuer diesen Tag vorhanden (Manifest am 2026-08-14 geprueft:
-# amd64 + arm64, ebenso fuer -cu129 und -cu130).
+# Basis ist v0.5.16, weil sglang-omni exakt sglang==0.5.16 pinnt — sowohl im
+# Release 0.1.1 als auch in main. Im :dev-Image steckt sglang 0.0.0.dev1, ein
+# pip install wuerde es herunterstufen. arm64 ist fuer diesen Tag vorhanden.
 FROM lmsysorg/sglang:v0.5.16
 
-# Version bewusst gepinnt: 0.1.1 ist zum Zeitpunkt des Baus die einzige
-# veroeffentlichte Version. Ohne Pin holt ein spaeterer Build stillschweigend
-# eine andere und bricht die Kopplung zu sglang 0.5.16 auf.
-RUN pip install --no-cache-dir sglang-omni==0.1.1
+# ── Warum aus git und nicht von PyPI ─────────────────────────────────────
+# Das Release 0.1.1 kennt MiniMax-Music3 NICHT. Der Start scheitert mit
+#   ValueError: Config for MiniMaxMusic3ForConditionalGeneration not found
+#   in the pipeline config registry
+# Die Registry dort fuehrt Qwen3-TTS, Voxtral-TTS, Whisper, Zonos2 und andere,
+# aber kein MiniMax. Unterstuetzt wird es erst seit Commit 05e268a4
+# "[Model] Support MiniMax Music 3 Model (#1521)" vom 2026-08-13 — nach dem
+# letzten Tag. Deshalb main statt PyPI.
+#
+# --no-deps ist hier kein Trick, sondern korrekt: das Basisimage bringt den
+# kompletten gepinnten Stack schon mit (geprueft 2026-08-14) — flash-attn-4
+# 4.0.0b19, flashinfer-python 0.6.14, addict 2.4.0, imageio 2.36.0,
+# imageio-ffmpeg 0.5.1, numba 0.65.1, transformers 5.12.1, torch 2.11.0+cu130.
+# Ohne --no-deps wuerde pip versuchen, nemo_text_processing (-> pynini, kein
+# aarch64-Wheel) und flash-attn-4 aus Quellen zu bauen; letzteres ist laut
+# southbyte-image ein >100-min-Compile ueber vier Architekturen.
+RUN pip install --no-cache-dir --no-deps \
+        "git+https://github.com/sgl-project/sglang-omni.git"
 
-# Import- und CUDA-Wache: bricht den Build ab, wenn die Installation die
-# Torch-CUDA-Bindung zerschossen hat. Ohne diese Pruefung faellt so etwas erst
-# beim ersten Modellstart auf — die abgeleiteten Dockerfiles in southbyte-tts
-# machen es aus demselben Grund so.
-RUN python3 -c "\
-import torch, sglang; \
-print('torch', torch.__version__, 'cuda', torch.version.cuda); \
-assert torch.version.cuda, 'Torch ohne CUDA-Unterstuetzung installiert'; \
-print('sglang', sglang.__version__); \
-import sgl_omni; print('sgl_omni vorhanden')"
+# ── flashinfer-cubin entfernen ───────────────────────────────────────────
+# Ausdrueckliche Warnung im Kochbuch von sglang-omni (docs/cookbook/
+# minimax_music3.md): "Do NOT add flashinfer-cubin: PyPI has no 0.6.14 cubin,
+# and any leftover cubin wheel fails MiniMax DIT import." Das Basisimage
+# bringt genau so ein Rest-Wheel mit (flashinfer-cubin 0.6.14), also raus damit
+# — sonst scheitert der DIT-Import erst beim Modellstart.
+RUN pip uninstall -y flashinfer-cubin || true
+
+# ── Importwache ──────────────────────────────────────────────────────────
+# Bricht den Build ab, wenn Torch seine CUDA-Bindung verloren hat, sglang_omni
+# fehlt oder die MiniMax-Architektur nicht in der Registry steht. Ohne diese
+# Pruefung faellt all das erst beim Modellstart auf.
+# Registry ueber Introspektion pruefen statt ueber einen geratenen Klassennamen:
+# ein erster Versuch importierte PipelineConfigRegistry, das es nicht gibt, und
+# liess den Build an der Wache scheitern statt am eigentlichen Problem.
+COPY pruefe_registry.py /tmp/pruefe_registry.py
+RUN python3 /tmp/pruefe_registry.py \
+ && command -v sgl-omni >/dev/null || { echo 'FEHLER: sgl-omni nicht im PATH'; exit 1; }
 
 # Kein ENTRYPOINT-Override: run_music.sh ruft 'sgl-omni serve ...' explizit auf.
