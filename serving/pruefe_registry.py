@@ -9,12 +9,15 @@ Startversuch am 2026-08-14 gescheitert:
 Die Registry wird per Introspektion gesucht, nicht ueber einen fest
 verdrahteten Klassennamen — der aendert sich zwischen Versionen.
 """
+
 import sys
 
-import torch
 import sglang
-import sglang_omni
+
+# Der Submodul-Import laedt sglang_omni mit — ein zusaetzliches
+# "import sglang_omni" waere redundant (ruff F401).
 import sglang_omni.models.registry as reg
+import torch
 
 print("torch", torch.__version__, "cuda", torch.version.cuda)
 if not torch.version.cuda:
