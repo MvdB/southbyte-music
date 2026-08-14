@@ -4,8 +4,34 @@ Text-zu-Musik auf dem **NVIDIA DGX Spark** (GB10 SoC, sm_120, 128 GB Unified
 Memory, aarch64) — Serving-Adapter plus schlanke Weboberfläche zum Erzeugen
 ganzer Stücke aus Text und Beschreibung.
 
-> **Status 2026-08-14: läuft auf dem DGX Spark.** Server bereit nach 160 s,
-> Musik erzeugt und geprüft. Alle Angaben unten sind gemessen, nicht geschätzt.
+> **Proof of Concept — kein Produkt.** Dieses Repo zeigt, dass sich
+> MiniMax-Music3 auf einem DGX Spark betreiben lässt und wie. Es ist keine
+> Anwendung mit zugesicherter Verfügbarkeit, Eignung oder Ergebnisqualität, es
+> gibt keinen Support und keine Roadmap. Wer es nachbaut, sollte damit rechnen,
+> selbst Hand anlegen zu müssen.
+>
+> **Stand 2026-08-14:** läuft. Server bereit nach 160 s, Musik erzeugt und
+> geprüft. Alle Zahlen unten sind gemessen, nicht geschätzt.
+
+## Voraussetzungen
+
+| | |
+|---|---|
+| Hardware | NVIDIA DGX Spark (GB10, sm_120, 128 GB Unified Memory, aarch64). Anderes CUDA-Gerät mit ≥ 60 GB sollte gehen, ist aber ungetestet |
+| Modell | [MiniMaxAI/MiniMax-Music3](https://huggingface.co/MiniMaxAI/MiniMax-Music3), rund 54 GB auf der Platte |
+| Laufzeit | Docker mit GPU-Zugriff |
+| Ablage | Modelle unter `~/hf_models/<owner>--<model>` (überschreibbar per `HF_MODELS_DIR`) |
+
+Das Modell wird **read-only** eingebunden; das Repo schreibt nichts in den
+Modellspeicher.
+
+```bash
+# Modell holen (Beispiel)
+hf download MiniMaxAI/MiniMax-Music3 --local-dir ~/hf_models/MiniMaxAI--MiniMax-Music3
+
+# Image bauen (rund 2 Minuten, das Basisimage bringt den Stack mit)
+docker build -t spark-sglang-omni:v1 -f serving/Dockerfile.music serving/
+```
 
 ## Modell
 
@@ -135,6 +161,23 @@ Nutzung ist erlaubt, mit zwei Auflagen:
 
 Erzeugte Audiodateien und `results/` sind per `.gitignore` ausgeschlossen und
 bleiben lokal.
+
+**Zur Einordnung:** Die Auflagen unter Abschnitt 3 der Lizenz gelten für
+kommerzielle Produkte. Dieses Repo ist ein Proof of Concept und keines. Die
+Nennung des Modellnamens steht trotzdem in der Oberfläche — wer den Code als
+Grundlage für etwas Kommerzielles nimmt, hat sie damit schon an der richtigen
+Stelle und stolpert nicht nachträglich darüber.
+
+## Was hier bewusst fehlt
+
+Kein Nutzerkonto, keine Warteschlange, keine Ratenbegrenzung, keine
+Persistenz. Die Oberfläche spricht den Endpunkt direkt an und hält nichts
+fest. Wer das ins Netz stellt, stellt einen offenen Generator ins Netz —
+für einen Proof of Concept im eigenen Netz genügt das, für alles andere nicht.
+
+Ebenfalls nicht enthalten: eine Evaluation. Die anderen Stacks dieser Familie
+messen ihre Modelle (WER für TTS, Prompt-Treue für Bild); für Musik gibt es
+hier bisher kein Maß. Was gut klingt, entscheidet vorerst das Ohr.
 
 ## Teil der southbyte-Familie
 

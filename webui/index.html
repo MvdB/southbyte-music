@@ -94,6 +94,12 @@
     cursor: pointer;
   }
   button:hover:not(:disabled) { background: var(--green-dim); }
+  button.klein {
+    margin-top: 8px; padding: 6px 12px; font-size: 11px;
+    background: transparent; color: var(--green);
+    border: 1px solid var(--border-hi);
+  }
+  button.klein:hover { background: var(--bg-raised); color: var(--green); }
   button:disabled { opacity: .4; cursor: not-allowed; }
   .hinweis { font-size: 12px; color: var(--text-dim); margin-top: 7px; }
 
@@ -130,6 +136,11 @@
     color: var(--text-dim); font-family: var(--mono); font-size: 11px;
     letter-spacing: 1px; text-align: center;
   }
+  .version { color: var(--text-muted); }
+  .poc {
+    margin-top: 6px; color: var(--text-dim); text-transform: none;
+    letter-spacing: 0; font-family: var(--sans); font-size: 11px;
+  }
   code {
     font-family: var(--mono); font-size: 12px;
     background: var(--bg-card); color: var(--green); padding: 1px 5px; border-radius: 2px;
@@ -140,6 +151,7 @@
 <header>
   <span class="wortmarke">SOUTH<span class="punkt">.</span>BYTE</span>
   <span class="tagline">AI Governance &amp; IT-Beratung</span>
+  <span class="tagline" style="color:var(--amber)">Proof of Concept</span>
   <span class="modell">Modell: <strong>MiniMax-Music3</strong></span>
 </header>
 
@@ -198,8 +210,9 @@ wir halten die Wache, wenn keiner mehr wacht
     <div class="reihe" style="margin-top:16px">
       <div>
         <label for="laenge">Laenge — Frames</label>
-        <input id="laenge" type="number" value="750" min="100" max="9000" step="50">
+        <input id="laenge" type="number" value="3900" min="100" max="9000" step="50">
         <div class="hinweis" id="laenge-hinweis"></div>
+        <button type="button" id="ableiten" class="klein">aus Text ableiten</button>
       </div>
       <div>
         <label for="format">Format</label>
@@ -240,7 +253,14 @@ wir halten die Wache, wenn keiner mehr wacht
 </main>
 
 <footer>
-  Erzeugt mit MiniMax-Music3 · SOUTH<span style="color:var(--green)">.</span>BYTE
+  <div>
+    Erzeugt mit MiniMax-Music3 · SOUTH<span style="color:var(--green)">.</span>BYTE
+    · <span class="version">v0.2.0 — 2026-08-14</span>
+  </div>
+  <div class="poc">
+    Proof of Concept, kein Produkt. Ohne Zusicherung von Verfuegbarkeit,
+    Eignung oder Ergebnisqualitaet.
+  </div>
 </footer>
 
 <script>
@@ -262,26 +282,67 @@ let letzteUrl = null;
 // ── Zeitschaetzung ───────────────────────────────────────────────────────
 // Der Server liefert KEINEN echten Fortschritt: stream:true wird mit HTTP 400
 // abgelehnt, und /health meldet nur, wie viele Anfragen laufen, nicht wie weit.
-// Der Balken beruht deshalb auf Messungen auf dem DGX Spark:
-//   250 Frames -> 85 s    750 Frames -> 157 s    1500 Frames -> 356 s
-// Ausgleichsgerade: rund 15 s Grundlast plus 0,22 s je Frame. Der Zusammenhang
-// ist nicht sauber linear — die Rechenzeit waechst ueberproportional, eine erste
-// Schaetzung aus nur den beiden kurzen Laeufen lag bei 1500 Frames um ein
-// Drittel zu niedrig. Deshalb ist und bleibt das eine Schaetzung, und sie wird
-// auch so beschriftet. Laeuft die Erzeugung darueber hinaus, springt der Balken
-// NICHT auf 100 %, sondern wechselt auf Amber und pulsiert — ein voller Balken,
-// hinter dem noch Minuten kommen, waere schlimmer als gar keiner.
-const GRUNDLAST_S = 15;
-const SEKUNDEN_JE_FRAME = 0.22;
+// Der Balken beruht deshalb auf vier Messungen auf dem DGX Spark:
+//   250 -> 85 s | 750 -> 157 s | 1500 -> 356 s | 3839 -> 831 s
+// Ausgleichsgerade: rund 22 s Grundlast plus 0,211 s je Frame.
+// Eine erste Fassung aus nur den beiden kurzen Laeufen lag bei 1500 Frames um
+// ein Viertel zu niedrig — kurze Laeufe taugen nicht zur Hochrechnung auf lange.
+// Es bleibt eine Schaetzung und wird auch so beschriftet. Laeuft die Erzeugung
+// darueber hinaus, springt der Balken NICHT auf 100 %, sondern wechselt auf
+// Amber und pulsiert: ein voller Balken, hinter dem noch Minuten kommen, waere
+// schlimmer als gar keiner.
+// Haeufiger ist der andere Fall — der Balken ist frueher fertig als geschaetzt,
+// weil das Modell bei Textende von selbst aufhoert (siehe RESERVE unten).
+const GRUNDLAST_S = 22;
+const SEKUNDEN_JE_FRAME = 0.211;
 const schaetzung = frames => GRUNDLAST_S + SEKUNDEN_JE_FRAME * frames;
 const mmss = s => `${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,"0")}`;
+
+// ── Laenge aus dem Text ableiten ─────────────────────────────────────────
+// Gemessen am 2026-08-14: 1500 Frames (60 s) deckten 10 gesungene Zeilen mit
+// rund 97 Silben ab — also etwa 1,62 Silben je Sekunde. Silben sind der
+// bessere Massstab als Zeilen, weil Zeilenlaengen stark schwanken.
+// Auf den Rohwert kommen 20 % Reserve: zu wenig Frames schneiden das Stueck
+// mitten im Wort ab, zu viele kosten nichts — das Modell hoert von selbst auf.
+// Am 2026-08-14 verifiziert: bei angeforderten 4000 Frames meldete der Server
+// "AR done frames=3839 finish_reason=stop", also 161 Frames vor dem Limit.
+// Grosszuegig aufrunden ist damit gratis, zu knapp rechnen nicht.
+const SILBEN_JE_SEKUNDE = 1.62;
+const RESERVE = 1.2;
+
+function silbenZaehlen(zeile) {
+  // Grob: Vokalgruppen. Fuer eine Laengenschaetzung genau genug.
+  const s = zeile.toLowerCase().replace(/[^a-zäöüß]/g, " ");
+  return Math.max(1, (s.match(/[aeiouyäöü]+/g) || []).length);
+}
+
+function textAnalysieren() {
+  const zeilen = $("lyrics").value.split("\n").map(z => z.trim());
+  const gesungen = zeilen.filter(z => z && !z.startsWith("["));
+  const abschnitte = zeilen.filter(z => z.startsWith("[")).length;
+  const silben = gesungen.reduce((n, z) => n + silbenZaehlen(z), 0);
+  const sekunden = silben / SILBEN_JE_SEKUNDE;
+  return { gesungen: gesungen.length, abschnitte, silben,
+           frames: Math.min(9000, Math.ceil(sekunden * 25 * RESERVE / 50) * 50) };
+}
 
 function laengeHinweisAktualisieren() {
   const frames = Number($("laenge").value) || 0;
   const audio = frames / 25;                     // 25 Frames je Sekunde
-  $("laenge-hinweis").textContent =
-    `${audio.toFixed(0)} s Audio · geschaetzt ${mmss(schaetzung(frames))} Rechenzeit`;
+  const a = textAnalysieren();
+  const knapp = frames < a.frames / RESERVE;     // reicht nicht mal ohne Reserve
+  $("laenge-hinweis").innerHTML =
+    `${audio.toFixed(0)} s Audio · geschaetzt ${mmss(schaetzung(frames))} Rechenzeit<br>` +
+    `Text: ${a.gesungen} Zeilen, ${a.silben} Silben` +
+    (knapp
+      ? ` — <span style="color:var(--amber)">reicht nicht, empfohlen ${a.frames}</span>`
+      : ` — empfohlen ${a.frames}`);
 }
+$("lyrics").addEventListener("input", laengeHinweisAktualisieren);
+$("ableiten").addEventListener("click", () => {
+  $("laenge").value = textAnalysieren().frames;
+  laengeHinweisAktualisieren();
+});
 $("laenge").addEventListener("input", laengeHinweisAktualisieren);
 laengeHinweisAktualisieren();
 
