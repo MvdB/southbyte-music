@@ -174,13 +174,32 @@ too, which is the house style across this family of repositories.
 
 ## Running it on Kubernetes
 
-There is a Helm chart under `charts/southbyte-music`. Two images, published to
-GHCR for `linux/amd64` and `linux/arm64`:
+There is a Helm chart under `charts/southbyte-music`. Two images, built for
+`linux/amd64` and `linux/arm64` and published to GHCR:
 
-| Image | Contents |
-|---|---|
-| `ghcr.io/mvdb/southbyte-music` | the model server (SGLang-Omni) |
-| `ghcr.io/mvdb/southbyte-music-webui` | nginx with the interface and a reverse proxy |
+| Image | Contents | Size |
+|---|---|---|
+| `ghcr.io/mvdb/southbyte-music` | the model server (SGLang-Omni) | 26.5 GB unpacked |
+| `ghcr.io/mvdb/southbyte-music-webui` | nginx with the interface and a reverse proxy | 54 MB |
+
+Tags: `main` follows the default branch, `sha-<short>` pins an exact commit,
+`latest` tracks `main`, and `v*` tags produce semver tags. Pin `sha-…` if you
+want a deployment that does not move under you.
+
+```bash
+docker pull ghcr.io/mvdb/southbyte-music:main
+docker buildx imagetools inspect ghcr.io/mvdb/southbyte-music:main   # both platforms
+```
+
+The server image is large because the SGLang base image is 24.6 GB of it. That
+is not something this repository can trim: the version is pinned to
+`sglang==0.5.16`, which is what `sglang-omni` requires.
+
+> **Package visibility is separate from repository visibility.** Making this
+> repository public does not publish its GHCR packages — that is a per-package
+> setting under *Packages → southbyte-music → Package settings → Change
+> visibility*, and GitHub exposes no REST endpoint for it. Until it is flipped,
+> `docker pull` needs a token with `read:packages`.
 
 ```bash
 helm install musik charts/southbyte-music \
@@ -256,6 +275,12 @@ ingress:
 CI builds both architectures **natively** — `ubuntu-24.04` for amd64 and
 `ubuntu-24.04-arm` for arm64 — and merges the two into one manifest list. No
 QEMU, so no hours-long emulated build.
+
+The arm64 runners are free for public repositories, which is what makes this
+approach viable here. Emulating arm64 on an amd64 runner would take hours for a
+stack this size; a native runner takes about as long as building locally. On a
+private repository these runners are billable, and a fork would need either the
+budget or a fallback to QEMU.
 
 Two things had to be worked around, and the first attempt died on both:
 
