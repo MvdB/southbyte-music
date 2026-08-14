@@ -53,7 +53,9 @@ einem lokalen 0,6B-LLM für akustische Details, 2,4B Flow-Matching und einem
 | | |
 |---|---|
 | Serverstart | 160 s |
-| Rechenzeit | rund **6× der Spieldauer** (60 s Audio in 356 s) |
+| Rechenzeit | rund **5–6× der Spieldauer**; vier Messpunkte: 250/750/1500/3839 Frames → 85/157/356/831 s |
+| Frames aus Text | rund **1,62 gesungene Silben je Sekunde** — 22 Zeilen mit 212 Silben brauchen etwa 3300 Frames |
+| Vorzeitiges Ende | verifiziert: bei angeforderten 4000 Frames meldete der Server `AR done frames=3839 finish_reason=stop` — großzügig aufrunden kostet nichts |
 | Attention-Backend | `torch_sdpa` — flash-attn wird nicht gebraucht |
 | Ausgabe WAV | 32 kHz, **Stereo**, 16 bit |
 | Ausgabe MP3 | 32 kHz, **Mono**, 40 kbit/s |
@@ -63,9 +65,34 @@ Der Zusammenhang ist **nicht linear** — die Rechenzeit wächst überproportion
 Die Oberfläche schätzt daraus mit rund 15 s Grundlast plus 0,22 s je Frame und
 kennzeichnet die Schätzung als solche.
 
-**MP3 ist Mono.** Der Server kodiert `mp3`, `flac` und `opus` einkanalig, nur
-`wav` behält das Stereobild. Die Oberfläche bietet deshalb beides an, mit MP3 als
-Vorgabe für den Versand und WAV für die volle Qualität.
+**MP3 ist Mono — und das ist eine Einschränkung von sglang-omni, keine des
+Modells.** In `sglang_omni/client/audio.py` steht für alle komprimierten Formate
+`stream.layout = "mono"` fest im Code, und mehrkanalige Daten werden davor per
+`audio.mean(...)` heruntergerechnet. Der Kommentar dort nennt den Grund:
+*"Streaming chunks are mono"* — der Pfad stammt aus dem Sprach-Streaming, wo Mono
+die Norm ist. `encode_wav` behandelt zwei Kanäle dagegen korrekt.
+
+Bei einem Modell, dessen Ausgabe 32 kHz **Stereo** ist, halbiert der bequemste
+Ausgabeweg also die Information. Die Oberfläche hat deshalb **WAV als Vorgabe**;
+MP3 bleibt wählbar, mit dem Hinweis daneben.
+
+**Die Caption gehört auf Englisch.** Sämtliche Beispiele des Herstellers sind
+englisch. Eine deutsche Stilbeschreibung zog das Ergebnis hörbar in Richtung
+deutschsprachiger Popmusik — aus „Melodischer Metal, 150 BPM, verzerrte
+Gitarrenwand" wurde etwas, das eher an Neue Deutsche Welle erinnerte. Dieselben
+Lyrics mit englischer Caption im Format des Kochbuchs trafen das Genre deutlich
+besser. **Die Lyrics dürfen deutsch bleiben**, nur die Beschreibung nicht.
+
+Format laut Kochbuch, und je konkreter desto besser:
+
+```
+Basic Attributes: bpm is 150, key is E minor, Melodic Heavy Metal.
+Emotional Progression: driving and defiant from the first bar, building into a
+soaring anthemic chorus.
+Sonics: heavily distorted rhythm guitars, double kick drums, orchestral string
+pad under the chorus, loud and tightly compressed.
+Vocals: clean powerful female lead, layered harmonies in the chorus.
+```
 
 ## Warum SGLang-Omni und kein eigener Adapter
 

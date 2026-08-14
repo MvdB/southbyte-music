@@ -205,8 +205,15 @@ wir halten die Wache, wenn keiner mehr wacht
 
   <div class="karte">
     <h2>Klangbild</h2>
-    <label for="beschreibung">Genre, Tempo, Tonart, Stimmung, Produktion</label>
-    <input id="beschreibung" value="Melodischer Metal, 150 BPM, E-Moll, doppelte Bassdrum, verzerrte Gitarrenwand, klare weibliche Leadstimme, symphonische Flaeche im Refrain, druckvolle Produktion">
+    <label for="beschreibung">Caption — auf Englisch, Genre, Instrumente, Tempo, Produktion</label>
+    <input id="beschreibung" value="Basic Attributes: bpm is 150, key is E minor, Melodic Heavy Metal / Symphonic Metal. Emotional Progression: driving and defiant from the first bar, palm-muted verse riff building into a soaring anthemic chorus. Sonics: heavily distorted rhythm guitars, double kick drums, aggressive snare, orchestral string pad under the chorus, loud and tightly compressed, wide stereo image. Vocals: clean powerful female lead, melodic, layered harmonies in the chorus.">
+    <div class="hinweis">
+      <strong>Englisch schreiben.</strong> Alle Beispiele des Herstellers sind englisch;
+      eine deutsche Caption zog das Ergebnis hoerbar in Richtung deutschsprachiger
+      Popmusik, unabhaengig vom gewuenschten Genre. Die Lyrics duerfen deutsch bleiben.
+      Format aus dem Kochbuch: <code>Basic Attributes</code> · <code>Emotional Progression</code> ·
+      <code>Sonics</code> · <code>Vocals</code>. Je konkreter, desto naeher am Ziel.
+    </div>
     <div class="reihe" style="margin-top:16px">
       <div>
         <label for="laenge">Laenge — Frames</label>
@@ -217,10 +224,14 @@ wir halten die Wache, wenn keiner mehr wacht
       <div>
         <label for="format">Format</label>
         <select id="format">
-          <option value="mp3" selected>MP3 — kompakt</option>
-          <option value="wav">WAV — Stereo</option>
+          <option value="wav" selected>WAV — Stereo</option>
+          <option value="mp3">MP3 — Mono, kompakt</option>
         </select>
-        <div class="hinweis">Der Server kodiert MP3 in <strong>Mono</strong>; WAV bleibt Stereo.</div>
+        <div class="hinweis">
+          MP3, FLAC und Opus liefert der Server nur in <strong>Mono</strong> —
+          <code>layout = "mono"</code> steht in sglang-omni fest im Code, der
+          Pfad stammt aus dem Sprach-Streaming. Nur WAV behaelt das Stereobild.
+        </div>
       </div>
       <div>
         <label for="seed">Seed</label>
