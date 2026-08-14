@@ -76,6 +76,19 @@ Bei einem Modell, dessen Ausgabe 32 kHz **Stereo** ist, halbiert der bequemste
 Ausgabeweg also die Information. Die Oberfläche hat deshalb **WAV als Vorgabe**;
 MP3 bleibt wählbar, mit dem Hinweis daneben.
 
+Für ein **Stereo-MP3** wandelt `serving/wav_zu_mp3.sh` ein erzeugtes WAV um. Das
+ffmpeg dafür steckt bereits im Serving-Image, auf dem Host muss nichts
+installiert werden:
+
+```bash
+serving/wav_zu_mp3.sh lied.wav              # -> lied.mp3, 192 kbit/s, Stereo
+serving/wav_zu_mp3.sh lied.wav fertig.mp3 320
+```
+
+Das Skript prüft die Ausgabe und bricht ab, falls sie doch einkanalig würde.
+Ein Entwurf für einen Fehlerbericht an das Projekt liegt unter
+[`docs/upstream-issue-mono.md`](docs/upstream-issue-mono.md).
+
 **Die Caption gehört auf Englisch.** Sämtliche Beispiele des Herstellers sind
 englisch. Eine deutsche Stilbeschreibung zog das Ergebnis hörbar in Richtung
 deutschsprachiger Popmusik — aus „Melodischer Metal, 150 BPM, verzerrte
