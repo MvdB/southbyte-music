@@ -203,7 +203,7 @@ is not something this repository can trim: the version is pinned to
 
 ```bash
 # From the published chart
-helm install musik oci://ghcr.io/mvdb/charts/southbyte-music \
+helm install musik oci://ghcr.io/mvdb/charts/southbyte-music --devel \
   --namespace musik --create-namespace
 
 # Or from a checkout
@@ -211,12 +211,17 @@ helm install musik charts/southbyte-music \
   --namespace musik --create-namespace
 ```
 
-The published chart pins its images by digest-stable `sha-…` tags from the run
-that built them, so a given chart version always deploys exactly those images —
-`helm install` cannot drift onto a newer build. `helm show chart
-oci://ghcr.io/mvdb/charts/southbyte-music` lists what is available. A checkout
-instead uses whatever `Chart.yaml` says, which on `main` is the moving `main`
-tag.
+**`--devel` is required until there is a tagged release.** Every push to `main`
+publishes a SemVer *pre-release* (`0.1.0-main.7`), and Helm ignores pre-releases
+unless you ask for them — without the flag it reports *Could not locate a version
+matching provided version string*, which reads like the chart is missing when it
+is not. `--version 0.1.0-main.7` pins one exactly. A `v*` git tag produces a
+stable version and the flag becomes unnecessary.
+
+The published chart pins its images to the `sha-…` tags from the run that built
+them, so a given chart version always deploys exactly those images and cannot
+drift onto a newer build. A checkout instead uses whatever `Chart.yaml` says,
+which on `main` is the moving `main` tag.
 
 The first start takes a while — see below — and the chart's `NOTES.txt` tells
 you which log to watch.

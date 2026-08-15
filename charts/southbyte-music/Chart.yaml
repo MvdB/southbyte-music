@@ -14,6 +14,9 @@ type: application
 version: 0.1.0
 appVersion: "main"
 
+# helm lint mahnt ein Icon an; seit das Repo oeffentlich ist, laesst sich das
+# Favicon der Oberflaeche direkt verlinken statt eine zweite Datei zu pflegen.
+icon: https://raw.githubusercontent.com/MvdB/southbyte-music/main/webui/favicon.svg
 home: https://github.com/MvdB/southbyte-music
 sources:
   - https://github.com/MvdB/southbyte-music
