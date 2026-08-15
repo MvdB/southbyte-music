@@ -164,6 +164,7 @@ Three cases:
 | Value | Meaning |
 |---|---|
 | `""` | derive from the page address: same host, port 8011. The normal local case |
+| `SOUTHBYTE_ENDPUNKT` | in the container image, sets this value at startup. Defaults to `/` — behind the built-in proxy that is nearly always right |
 | `"/"` | same origin as the page. For a reverse proxy in front, which is how the Kubernetes chart runs it |
 | a URL | wherever the music server actually is |
 
