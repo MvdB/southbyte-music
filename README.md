@@ -182,9 +182,9 @@ There is a Helm chart under `charts/southbyte-music`. Two images, built for
 | `ghcr.io/mvdb/southbyte-music` | the model server (SGLang-Omni) | 26.5 GB unpacked |
 | `ghcr.io/mvdb/southbyte-music-webui` | nginx with the interface and a reverse proxy | 54 MB |
 
-Tags: `main` follows the default branch, `sha-<short>` pins an exact commit,
-`latest` tracks `main`, and `v*` tags produce semver tags. Pin `sha-…` if you
-want a deployment that does not move under you.
+Tags: `0.1.0` and `0.1` come from git tags, `main` follows the default branch,
+`latest` tracks `main`, and `sha-<short>` pins an exact commit. Use a version tag
+for anything you care about; `main` and `latest` move under you by design.
 
 ```bash
 docker pull ghcr.io/mvdb/southbyte-music:main
@@ -202,8 +202,12 @@ is not something this repository can trim: the version is pinned to
 > `docker pull` needs a token with `read:packages`.
 
 ```bash
-# From the published chart
-helm install musik oci://ghcr.io/mvdb/charts/southbyte-music --devel \
+# From the published chart — resolves to the newest release
+helm install musik oci://ghcr.io/mvdb/charts/southbyte-music \
+  --namespace musik --create-namespace
+
+# Pin a version
+helm install musik oci://ghcr.io/mvdb/charts/southbyte-music --version 0.1.0 \
   --namespace musik --create-namespace
 
 # Or from a checkout
@@ -211,17 +215,15 @@ helm install musik charts/southbyte-music \
   --namespace musik --create-namespace
 ```
 
-**`--devel` is required until there is a tagged release.** Every push to `main`
-publishes a SemVer *pre-release* (`0.1.0-main.7`), and Helm ignores pre-releases
-unless you ask for them — without the flag it reports *Could not locate a version
-matching provided version string*, which reads like the chart is missing when it
-is not. `--version 0.1.0-main.7` pins one exactly. A `v*` git tag produces a
-stable version and the flag becomes unnecessary.
+Every push to `main` also publishes a SemVer *pre-release* (`0.1.0-main.7`).
+Helm ignores those unless you pass `--devel` or name one with `--version`, so
+plain `helm install` always lands on a tagged release and never on whatever was
+merged last.
 
-The published chart pins its images to the `sha-…` tags from the run that built
-them, so a given chart version always deploys exactly those images and cannot
-drift onto a newer build. A checkout instead uses whatever `Chart.yaml` says,
-which on `main` is the moving `main` tag.
+A released chart pins its images to that release's version tag, so a given chart
+version always deploys exactly those images and cannot drift onto a newer build.
+A checkout instead uses whatever `Chart.yaml` says, which on `main` is the moving
+`main` tag.
 
 The first start takes a while — see below — and the chart's `NOTES.txt` tells
 you which log to watch.
