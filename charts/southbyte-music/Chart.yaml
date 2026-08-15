@@ -3,11 +3,16 @@ name: southbyte-music
 description: MiniMax-Music3 als OpenAI-kompatibler Dienst, mit Weboberflaeche
 type: application
 
-# version ist die Version des Charts, appVersion die der ausgelieferten Images.
-# Beide werden von der CI beim Veroeffentlichen gesetzt; die Werte hier sind
-# der Entwicklungsstand.
+# Beide Felder ueberschreibt die CI beim Veroeffentlichen; hier steht nur der
+# Entwicklungsstand fuer 'helm template' aus dem Arbeitsverzeichnis.
+#
+# appVersion ist dabei nicht bloss Beschriftung: values.yaml laesst image.tag
+# leer und faellt auf .Chart.AppVersion zurueck. Eine von Hand gepflegte Nummer
+# zeigte deshalb auf ein Image, das es in der Registry nie gab. Die CI setzt
+# stattdessen den sha-Tag des Laufes, der die Images gebaut hat, und prueft vor
+# dem Ablegen nach, dass beide wirklich abholbar sind.
 version: 0.1.0
-appVersion: "0.4.0"
+appVersion: "main"
 
 home: https://github.com/MvdB/southbyte-music
 sources:

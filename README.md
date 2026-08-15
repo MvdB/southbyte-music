@@ -202,9 +202,21 @@ is not something this repository can trim: the version is pinned to
 > `docker pull` needs a token with `read:packages`.
 
 ```bash
+# From the published chart
+helm install musik oci://ghcr.io/mvdb/charts/southbyte-music \
+  --namespace musik --create-namespace
+
+# Or from a checkout
 helm install musik charts/southbyte-music \
   --namespace musik --create-namespace
 ```
+
+The published chart pins its images by digest-stable `sha-…` tags from the run
+that built them, so a given chart version always deploys exactly those images —
+`helm install` cannot drift onto a newer build. `helm show chart
+oci://ghcr.io/mvdb/charts/southbyte-music` lists what is available. A checkout
+instead uses whatever `Chart.yaml` says, which on `main` is the moving `main`
+tag.
 
 The first start takes a while — see below — and the chart's `NOTES.txt` tells
 you which log to watch.

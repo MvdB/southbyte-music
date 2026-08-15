@@ -293,3 +293,90 @@ jobs:
           helm template pruef charts/southbyte-music \
             --set ingress.enabled=true --set networkPolicy.enabled=true \
             | ./kubeconform -strict -summary -kubernetes-version 1.31.0 -
+
+  chart-veroeffentlichen:
+    # Erst nach den Images. Ein Chart, das auf Images zeigt, die noch nicht in
+    # der Registry liegen, ist eine Zusage auf Verdacht — 'helm install' wuerde
+    # damit in ein ImagePullBackOff laufen.
+    needs: [bauen, zusammenfassen, chart]
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v5
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.16.4
+
+      - name: Registry-Pfad in Kleinschreibung
+        id: pfad
+        env:
+          EIGNER: ${{ github.repository_owner }}
+        run: |
+          echo "eigner=${EIGNER,,}" >> "$GITHUB_OUTPUT"
+          echo "ziel=oci://${REGISTRY}/${EIGNER,,}/charts" >> "$GITHUB_OUTPUT"
+
+      # ── Der wichtigste Schritt, und der am leichtesten zu uebersehende ──
+      # Die Vorgabe fuer den Image-Tag im Chart ist die appVersion. Stand dort
+      # eine Handnummer wie "0.4.0", zeigte das Chart auf ein Image, das es in
+      # der Registry gar nicht gibt (geprueft: 0.4.0 -> not found). Deshalb
+      # werden beide Felder hier auf das gesetzt, was dieser Lauf tatsaechlich
+      # abgelegt hat: appVersion auf den sha-Tag, damit ein Chart-Stand
+      # unveraenderlich auf genau diese Images zeigt.
+      - name: Versionen an den Lauf binden
+        id: version
+        run: |
+          set -eu
+          KURZ="sha-$(git rev-parse --short=7 HEAD)"
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            # v1.2.3 -> Chart 1.2.3, Images tragen denselben semver-Tag.
+            CHART="${GITHUB_REF_NAME#v}"
+            APP="${CHART}"
+          else
+            # main: SemVer-Vorabversion. Die Laufnummer steigt monoton und hat
+            # keine fuehrenden Nullen — beides verlangt SemVer 2 von einem
+            # numerischen Bezeichner.
+            CHART="0.1.0-main.${{ github.run_number }}"
+            APP="${KURZ}"
+          fi
+          sed -i "s|^version:.*|version: ${CHART}|" charts/southbyte-music/Chart.yaml
+          sed -i "s|^appVersion:.*|appVersion: \"${APP}\"|" charts/southbyte-music/Chart.yaml
+          echo "chart=${CHART}" >> "$GITHUB_OUTPUT"
+          echo "app=${APP}" >> "$GITHUB_OUTPUT"
+          echo "Chart ${CHART}, appVersion ${APP}"
+
+      # Die Zusage pruefen, bevor sie ausgeliefert wird: zeigen die Vorgaben des
+      # Charts auf Images, die wirklich abholbar sind?
+      - name: Zeigen die Vorgaben auf vorhandene Images?
+        env:
+          EIGNER: ${{ steps.pfad.outputs.eigner }}
+          APP: ${{ steps.version.outputs.app }}
+        run: |
+          set -eu
+          for i in southbyte-music southbyte-music-webui; do
+            echo "── ${REGISTRY}/${EIGNER}/${i}:${APP}"
+            docker buildx imagetools inspect "${REGISTRY}/${EIGNER}/${i}:${APP}" > /dev/null
+          done
+          echo "Beide Images vorhanden."
+
+      - name: An GHCR anmelden
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login "${REGISTRY}" -u "${{ github.actor }}" --password-stdin
+
+      - name: Packen und ablegen
+        env:
+          ZIEL: ${{ steps.pfad.outputs.ziel }}
+        run: |
+          set -eu
+          helm package charts/southbyte-music --destination /tmp/chart
+          helm push /tmp/chart/southbyte-music-*.tgz "${ZIEL}"
+
+      - name: Gegenprobe — laesst sich das Chart wieder ziehen?
+        env:
+          EIGNER: ${{ steps.pfad.outputs.eigner }}
+          CHART: ${{ steps.version.outputs.chart }}
+        run: |
+          set -eu
+          helm show chart "oci://${REGISTRY}/${EIGNER}/charts/southbyte-music" --version "${CHART}"
