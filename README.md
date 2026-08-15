@@ -118,8 +118,9 @@ serving/wav_zu_mp3.sh song.wav final.mp3 320
 ```
 
 The script checks its own output and aborts if it came out single-channel after
-all. A draft bug report for the upstream project is in
-[`docs/upstream-issue-mono.md`](docs/upstream-issue-mono.md).
+all. Reported upstream as
+[sgl-project/sglang-omni#1549](https://github.com/sgl-project/sglang-omni/issues/1549);
+the analysis is kept in [`docs/upstream-issue-mono.md`](docs/upstream-issue-mono.md).
 
 ### Write the caption in English
 

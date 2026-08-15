@@ -1,22 +1,20 @@
-# Entwurf: Fehlerbericht an sgl-project/sglang-omni
+# Compressed output formats are mono in sglang-omni
 
-Nicht abgeschickt — das gehört unter deinen Namen, nicht unter meinen.
-Repo: https://github.com/sgl-project/sglang-omni/issues
+A write-up of the limitation behind the *MP3 is mono* note in the README.
 
----
+**Reported upstream:**
+[sgl-project/sglang-omni#1549](https://github.com/sgl-project/sglang-omni/issues/1549).
+This page keeps the finding reproducible here; check the issue for the current
+status.
 
-**Titel:** `Compressed output formats are hardcoded to mono, downmixing stereo music models`
+## What happens
 
----
-
-### What happened
-
-MiniMax Music 3 produces 32 kHz **stereo** audio. When requested with
+MiniMax Music 3 produces 32 kHz **stereo** audio. Requested with
 `response_format: "wav"` the response is stereo, as expected. With `"mp3"`,
 `"flac"`, `"opus"` or `"aac"` the same request returns **mono** — one channel of
 a two-channel signal, silently downmixed.
 
-### Where it comes from
+## Where it comes from
 
 In `sglang_omni/client/audio.py`, the compressed-format encoder pins the layout:
 
@@ -42,15 +40,13 @@ The comment names the origin, and it is a reasonable one: this path was written
 for speech streaming, where mono is the norm. It predates the arrival of a music
 model whose output is stereo by design.
 
-### Why it matters
+## Why it matters
 
 For TTS and ASR the behaviour is harmless. For MiniMax Music 3 it means the most
 convenient output format discards half the signal — and does so without a
 warning, so it is easy to ship a pipeline that quietly loses the stereo image.
-The workaround is to always request WAV and re-encode afterwards, which is fine
-for a script and awkward for a browser client that just wants a small file.
 
-### Steps to reproduce
+## Reproduction
 
 ```bash
 sgl-omni serve --model-path MiniMaxAI/MiniMax-Music3 --port 8000
@@ -68,7 +64,13 @@ done
 
 Observed: `wav: 2`, `mp3: 1`, `flac: 1`, `opus: 1`.
 
-### Suggested fix
+## Workaround
+
+Request WAV and re-encode. `serving/wav_zu_mp3.sh` in this repository does that
+with the ffmpeg already present in the serving image, and checks its own output
+so a silent fallback to mono cannot slip through.
+
+## Suggested fix
 
 Derive the channel count from the payload instead of pinning it — set
 `stream.layout` to `"stereo"` when the array has two channels, and keep the
@@ -76,10 +78,9 @@ downmix only for the streaming path that genuinely needs it. If the downmix has
 to stay for other reasons, logging it once per request would already help,
 because the current failure is silent.
 
-### Environment
+## Environment
 
-- `sglang-omni` from `main` (installed after commit `05e268a4`,
-  "[Model] Support MiniMax Music 3 Model")
+- `sglang-omni` from `main`, commit `68abc7ee`
 - `sglang` 0.5.16, torch 2.11.0+cu130
 - Base image `lmsysorg/sglang:v0.5.16`, **aarch64**
 - NVIDIA GB10 (DGX Spark), sm_120, CUDA 13.0
