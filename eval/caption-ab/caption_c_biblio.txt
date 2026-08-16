@@ -1,0 +1,18 @@
+Global Metadata
+Basic Attributes: bpm is 150. key is E, and scale is minor. Melodic Heavy Metal / Symphonic Metal.
+Global Emotional Progression: An orchestral hush opens the piece and is cut short when the band arrives on a downbeat. The verse holds its force back, clipped and watchful, and the pre-chorus tightens the phrasing until the ground gives way beneath it. The chorus opens into a broad, defiant declaration that never loses its forward pressure, and the closing bars are left to ring out rather than being cut off.
+Application Scenarios & Imagery: Holding a position against a larger force; a machine hall awake through the night; a decision that will not be walked back.
+Sonics & Production Profile: A broad soundstage with the rhythm guitars pushed to the outer channels and the orchestra placed behind them rather than alongside them. Upper mids stay bright so guitars and lead vocal remain legible inside the density, and the bottom end is controlled and quick rather than loose. Level is high and the compression heavy in the modern metal manner, yet the opening is kept comparatively open so the first full-band entry registers as a real step up.
+
+Vocal Details
+Vocal Gender & Timbre: Singer A (Female). A clean, powerful mezzo with a bright ring at the top that carries across a dense mix without forcing, warmer and nearer in the quiet passages.
+Vocal Style: Measured and rhythmically exact in the verse, tracking the riff closely. The pre-chorus widens the phrasing and lifts the register a step at a time. The chorus is sung fully open and sustained across the line ends, projected rather than shouted, and the delivery stays clean from beginning to end with no harsh or screamed technique anywhere.
+Harmony/Backing Vocals: The verse is a single voice. A thin octave doubling arrives with the pre-chorus. The chorus carries multi-tracked self-harmonies in thirds and fifths, spread wide, so the hook thickens towards a choral texture.
+Vocal FX: Plate reverb of medium length, sized for space without blurring the consonants; a short slap delay on the verse line ends; light saturation on the chorus lead so it stays above the guitars.
+
+Arrangement
+Instrument Lifecycle Description (Primary/Secondary Layering):
+Primary: Rhythm guitars under heavy distortion, clamped under the palm and rhythmically tight in the verse, released into open sustained chords across the chorus. Silent through the intro, back in place for the outro.
+Secondary: A full string section states the key alone in the intro, drops to a quiet sustained bed under the verse, climbs through the pre-chorus and swells beneath the guitars in the chorus, doubling the vocal contour an octave above. Bass welds itself to the kick as soon as the band enters. A brass figure marks the bar in which each chorus lands.
+Groove & Foundation Progression: No kit in the intro. The verse enters on a tight double-kick pattern with sharp snare accents and closed hats. The pre-chorus opens the hats and shortens the fills. The chorus widens out, a crash marking every downbeat, while bass and kick hold the low end fixed under the widened top. The outro thins back to strings and decaying cymbals.
+Embellishments, Textures & Spatial FX: A single rising cymbal swell leads out of the intro. Risers and reverse cymbals carry the final two bars of the pre-chorus into the release, orchestral percussion adds weight beneath that build, and the outro is allowed to decay on a sustained chord that thins instead of fading.
