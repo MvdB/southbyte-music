@@ -85,9 +85,11 @@ Aufbau, Messwerte und Grenzen des Laufs stehen in
 [`eval/caption-ab/ERGEBNIS.md`](../../../eval/caption-ab/ERGEBNIS.md), die beiden
 verglichenen Captions daneben.
 
-**Nicht verglichen** wurde, ob die Vorlagenbibliothek des Upstream-Skills gegenüber
-einer frei geschriebenen Langform etwas beiträgt — dafür bräuchte es einen dritten
-Arm. Über die Bibliothek sagt dieser Skill deshalb nichts aus.
+**Nicht entschieden** ist, ob die Vorlagenbibliothek gegenüber einer frei
+geschriebenen Langform etwas beiträgt. Ein dritter Arm dazu liegt inzwischen in
+`eval/caption-ab/`, er lief aber auf einem neueren Serverstand — und der ändert
+das Ergebnis bei festem Seed nachweislich. Bis die ersten beiden Arme dort
+nachgelaufen sind, sagt dieser Skill über die Bibliothek nichts aus.
 
 ### Kurzform — vier Zeilen
 
