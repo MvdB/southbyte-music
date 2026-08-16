@@ -1,6 +1,6 @@
 ---
 name: musik-caption
-description: Schreibt oder überarbeitet die Caption für MiniMax-Music3 — den Strukturtext, der als `instructions` neben die Lyrics geht. Verwenden, sobald für southbyte-music ein Klangbild beschrieben, ein bestehender Prompt verbessert, ein Genre getroffen oder ein Fehlversuch analysiert werden soll. Kennt beide Formen des Schemas, die harten Grenzen des Modells und die auf dem DGX Spark gemessenen Eigenheiten.
+description: Schreibt oder überarbeitet die Caption für MiniMax-Music3 — den Strukturtext, der als `instructions` neben die Lyrics geht. Verwenden, sobald für southbyte-music ein Klangbild beschrieben, ein bestehender Prompt verbessert, ein Genre getroffen oder ein Fehlversuch analysiert werden soll. Kennt beide Formen des Schemas, die harten Grenzen des Modells und die auf dem DGX Spark gemessenen Eigenheiten. Bringt 1000 Referenz-Captions über 18 Stilfamilien mit, erschlossen über einen Genre-Router — auch für Genres, die man nicht im Ohr hat.
 ---
 
 # Caption für MiniMax-Music3
@@ -119,26 +119,80 @@ Arrangement
 Bei Instrumentalstücken tritt an die Stelle der Gesangsangaben die Feststellung,
 dass es instrumental ist, plus das Instrument, das die Melodie führt.
 
+## Referenzen finden
+
+Im Verzeichnis liegen 1000 vollständige Referenz-Captions des Herstellers, sortiert
+über 18 Stilfamilien. Sie sind der schnellste Weg zu einem Genre, das man nicht im
+Ohr hat — aber nur, wenn man sie **nicht** durchsucht.
+
+**Nie alle Vorlagen scannen, keine Dateinamen durchgrepen, keine Datenbank bauen.**
+Der Korpus ist auf schrittweises Aufdecken ausgelegt; wer ihn breit einliest,
+verbrennt Kontext und trifft es trotzdem nicht besser. Drei Schritte:
+
+1. **[`references/genre-router.md`](references/genre-router.md) lesen.** Er ordnet die
+   Absicht einer Familie zu. Genre, Groove, Instrumentierung und kultureller Kontext
+   sind stärkere Signale als Adjektive: `ballad`, `emotional`, `epic`, `modern`,
+   `dark` und `cinematic` gelten als Modifikatoren, nicht als Genre. Der Router führt
+   auch chinesische Bezeichnungen (华语流行, 国风流行, 氛围 R&B) auf ihre Familie zurück.
+2. **Einen Familienindex lesen**, bei ausdrücklicher Fusion einen zweiten. Nie mehr
+   als zwei. Der Index trägt Karten mit Stil, Tempo und Tonart, Stimmungsbogen,
+   Stimmlage, Instrumentierung und dem Pfad zur vollständigen Vorlage.
+3. **Höchstens drei Vorlagen öffnen**, und zwar mit verteilten Rollen:
+   - **Foundation** — nächste Verwandte bei Identität, Groove und Songsprache.
+   - **Modifier** — nur für die eine Dimension, die sie beisteuert: ein zweites
+     Genre, eine Stimmfarbe, eine kulturelle Färbung, ein Produktionscharakter.
+   - **Arrangement** — nur für Ablauflogik: Abschnittsentwicklung, Energiebogen,
+     Übergänge, Instrumentenlebenslauf.
+
+   Bei einfachen Anfragen genügen eine oder zwei. Keine schwache Vorlage nehmen,
+   nur um auf drei zu kommen.
+
+**Aus einer Vorlage wird abgeleitet, nicht abgeschrieben.** Nicht ihr BPM, nicht
+ihre Tonart, nicht ihre Besetzung, nicht ihre Abschnittsfolge und schon gar keine
+Sätze. Sie zeigt, wie ein Genre klingt und wie ein Arrangement atmet — den Rest
+liefert die Absicht des Nutzers. Vorlagenkennungen, Routing-Entscheidungen und die
+Auswahl gehören nicht in die Antwort, außer sie werden ausdrücklich verlangt.
+
+Welche Familien es gibt und wie sie sich abgrenzen, steht im Router; Herkunft und
+Lizenz des Korpus in [`HERKUNFT.md`](HERKUNFT.md).
+
 ## Vorgehen
 
 1. **Absicht sammeln.** Genre, Stimmung, Tempo, Tonart, Besetzung, Instrumente,
-   Produktionscharakter, ausdrückliche Ausschlüsse.
-2. **Abschnitte aus den Lyrics übernehmen.** Die eckigen Klammern `[Intro]`,
+   Produktionscharakter, ausdrückliche Ausschlüsse. Jede Angabe innerlich als
+   *ausdrücklich*, *aus einem Lyrics-Tag*, *erschlossen* oder *offen* führen — was
+   offen ist, bleibt offen.
+2. **Referenzen holen**, wenn das Genre nicht selbstverständlich ist: Router,
+   Familienindex, bis zu drei Vorlagen (siehe oben). Bei einem vertrauten Genre und
+   klarer Absicht ist das übersprungen — der Umweg lohnt nicht immer.
+3. **Abschnitte aus den Lyrics übernehmen.** Die eckigen Klammern `[Intro]`,
    `[Verse]`, `[Pre-Chorus]`, `[Chorus]`, `[Bridge]`, `[Outro]` sind
    Anweisungen. Das Arrangement folgt genau diesen Abschnitten — keine erfinden,
    keine übergehen.
-3. **Nichts erfinden, was nicht gefordert ist.** Kein exaktes BPM, keine Tonart,
+4. **Nichts erfinden, was nicht gefordert ist.** Kein exaktes BPM, keine Tonart,
    kein Stimmgeschlecht, wenn die Vorgabe es offen lässt. Eine Bandbreite oder
    eine qualitative Angabe ist ehrlicher und schadet weniger als eine geratene
-   Zahl.
-4. **Ausdrückliche Vorgaben schlagen alles.** Ein gefordertes Instrumentalstück
+   Zahl. Das gilt besonders gegenüber einer Vorlage: Ihre Zahlen gehören ihr.
+5. **Ausdrückliche Vorgaben schlagen alles.** Ein gefordertes Instrumentalstück
    bleibt instrumental. Ein gefordertes Stimmgeschlecht wird nicht gedreht. Ein
-   Ausschluss bleibt ein Ausschluss.
-5. **Konkrete musikalische Veränderungen statt Vokabelhaufen.** „Palm-Mute
+   Ausschluss bleibt ein Ausschluss. Bei Widerspruch gilt diese Rangfolge:
+
+   1. ausdrückliche Forderungen und Ausschlüsse des Nutzers
+   2. Anweisungen aus einem Lyrics-Tag — aber nur innerhalb ihres Abschnitts
+   3. was die Beschreibung stark nahelegt
+   4. Eigenschaften der gewählten Referenzen
+   5. konservative musikalische Voreinstellungen
+
+   Ein Abschnitts-Tag darf das Arrangement lokal ändern, ohne das Genre des
+   Stücks zu kippen. Widersprechen sich zwei ausdrückliche Angaben, gilt die
+   speziellere und spätere, solange die Absicht klar bleibt — sonst der kleinste
+   musikalisch stimmige Kompromiss.
+6. **Konkrete musikalische Veränderungen statt Vokabelhaufen.** „Palm-Mute
    öffnet sich zu offenen Powerchords, Streicher steigen darunter" ist
    brauchbar; „episch, druckvoll, modern" ist es nicht.
-6. **Lyrics nie wiederholen.** Nicht zitieren, nicht zusammenfassen, nicht
-   umschreiben. Sie stehen schon im `input`-Feld.
+7. **Lyrics nie wiederholen.** Nicht zitieren, nicht zusammenfassen, nicht
+   umschreiben. Sie stehen schon im `input`-Feld. Aus dem Text darf die
+   Gefühlslage abgelesen werden, mehr nicht.
 
 ## Prüfen, bevor es rausgeht
 
@@ -148,6 +202,7 @@ dass es instrumental ist, plus das Instrument, das die Melodie führt.
 - kein Lyrics-Zitat, kein Titel, keine Vorlagenkennung
 - Instrumente setzen nachvollziehbar ein, verändern sich und gehen wieder
 - kein erfundenes BPM, keine erfundene Tonart
+- kein Satz und keine vollständige Struktur aus einer Vorlage übernommen
 - Frames passen zur Silbenzahl, mit Reserve
 
 ## Ausprobieren
@@ -171,16 +226,19 @@ musikalische Eindruck bleibt Sache des Ohrs.
 
 ## Herkunft
 
-Das Schema und der Aufbau dieses Skills gehen auf
-[`music-caption-rewriter`](https://github.com/MiniMax-AI/MiniMax-Music3/tree/main/skills/music-caption-rewriter)
-aus dem Repository von MiniMax-AI zurück, das unter der *MiniMax-Music3
-Community License* steht. Dieser Skill ist eigener Text; übernommen sind die
-Feldnamen des Caption-Schemas und die Reihenfolge der Abschnitte.
+Dieser Skill ist gemischt, und die Trennung ist scharf:
 
-Der Upstream-Skill bringt zusätzlich einen Genre-Router, 18 Familien-Indizes und
-1000 vollständige Referenz-Captions mit — nützlich, wenn ein Genre gesucht wird,
-für das hier kein Beispiel steht. Er lässt sich unabhängig installieren:
+- **`SKILL.md` ist eigener Text.** Die gemessenen Grenzen, der BPM-Befund, die
+  deutschen Lyrics-Eigenheiten und der Langform-A/B stehen so nur hier — der
+  Upstream kennt weder diese Maschine noch dieses Serving. Übernommen sind die
+  Feldnamen des Caption-Schemas, die Reihenfolge der Abschnitte und das Verfahren
+  zum Auffinden von Referenzen.
+- **`references/`, `templates/` und `LICENSE` sind unverändert übernommen** aus
+  [`music-caption-rewriter`](https://github.com/MiniMax-AI/MiniMax-Music3/tree/main/skills/music-caption-rewriter)
+  von MiniMax-AI, Stand 15.08.2026, Commit `9456550`. Sie stehen unter der
+  *MiniMax-Music3 Community License*, die Weitergabe erlaubt, solange der
+  Lizenztext mitreist.
 
-```bash
-npx skills add MiniMax-AI/MiniMax-Music3 --skill music-caption-rewriter
-```
+Was das im Einzelnen bedeutet — auch die kommerziellen Auflagen — steht in
+[`HERKUNFT.md`](HERKUNFT.md). Kurz: **in `references/` und `templates/` wird nicht
+editiert.** Aktualisiert wird durch Neukopieren aus dem Upstream.
