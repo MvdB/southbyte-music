@@ -1,0 +1,4 @@
+# Die vier WAVs des Laufs sind 36 MB und gehoeren nicht ins Repository.
+# `lauf.sh` erzeugt sie neu, `messen.py` liest sie von hier.
+out_*.wav
+anfrage.json
