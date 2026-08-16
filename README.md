@@ -11,7 +11,6 @@ small web interface.
 
 ## What it does
 
-- Up to **5 minutes** per piece, 32 kHz stereo WAV.
 - **In:** lyrics with section tags (`[Intro]`, `[Verse]`, `[Chorus]`, …) and a
   caption describing genre, mood and instrumentation.
 - **Out:** a complete song with vocals — arrangement, singing and mix in one pass.
@@ -21,6 +20,19 @@ small web interface.
 
 It does **not** take audio as input, separate stems, clone voices or continue an
 existing track.
+
+Measured on a DGX Spark (GB10), not estimated:
+
+| | |
+|---|---|
+| Length | up to **5:00** per piece — 7500 frames at 25 fps, the range the model was trained for |
+| Generation time | **5–6× the playing time**; a three-minute song is about a quarter of an hour |
+| Server start | **160 s** until it answers |
+| Length from lyrics | about **1.62 sung syllables per second** — that is how the interface turns a lyric sheet into a frame count |
+| Output | 32 kHz stereo, 16 bit WAV |
+
+How each number was arrived at, including the one that was wrong the first time:
+[`docs/modell.md`](docs/modell.md).
 
 ## Getting it running
 
@@ -36,14 +48,13 @@ docker compose logs -f
 ```
 
 Then open <http://127.0.0.1:8080> and press **Musik erzeugen** — the interface
-ships with a complete example, so the first run needs no input at all.
-`docker compose down` stops both again.
+ships with a complete example, so the first run needs no input. `docker compose
+down` stops both again.
 
 You need **Docker with GPU access** and a CUDA device with ≥ 60 GB. Developed on
 a DGX Spark (GB10, sm_120, 128 GB unified memory, aarch64); anything else should
-work but is untested. The images are public — no login, no token.
-
-Prefer the API? It is OpenAI-compatible:
+work but is untested. The images are public — no login, no token. Or drive the
+OpenAI-compatible API directly:
 
 ```bash
 curl http://127.0.0.1:8011/v1/audio/speech \
@@ -61,29 +72,30 @@ Ports, image tags, plain `docker run` and building it yourself:
 
 ## What to watch out for
 
-**It is slow, and predictably so.** Generation takes roughly **5–6× the playing
-time** — a three-minute song is about a quarter of an hour. The interface
-estimates it up front rather than leaving you guessing.
+**Describe the arrangement, not just the genre.** Same lyrics, same frames, two
+seeds, only the caption form differs: describing the sections pulled the spread
+between seeds from **0.325 down to 0.055** and widened the stereo image from
+**0.46 to 0.54**. The seed still picks melody and timbre — but no longer the
+shape of the piece. Numbers and recipe:
+[`eval/caption-ab/`](eval/caption-ab/ERGEBNIS.md).
+
+**It is slow, and predictably so.** A three-minute song is about a quarter of an
+hour. The interface estimates it up front rather than leaving you guessing.
 
 **Ask for WAV, not MP3.** Every compressed format the server offers comes back
 **mono**, silently discarding half of a stereo signal. That is the serving stack,
 not the model. For a stereo MP3, re-encode afterwards with
 `serving/wav_zu_mp3.sh`. Details: [`docs/upstream-issue-mono.md`](docs/upstream-issue-mono.md).
 
-**Write the caption in English.** A German style description pulls the result
-audibly towards German-language pop — *"Melodischer Metal, 150 BPM"* produced
-something closer to 1980s Neue Deutsche Welle than to metal. Lyrics in any
-language are fine — with German ones, transliterate the umlauts; English proper
-names inside German lines came out right every time so far
-([`docs/modell.md`](docs/modell.md)).
+**Write the caption in English.** A German one pulls the result audibly towards
+German-language pop — *"Melodischer Metal, 150 BPM"* landed closer to 1980s Neue
+Deutsche Welle than to metal. Lyrics may be any language; with German,
+transliterate the umlauts ([`docs/modell.md`](docs/modell.md)).
 
 **BPM is a wish, not a setting.** Four runs demanding 150 BPM explicitly hit it
 in none. Write the number down anyway — it costs nothing and reads as a style
 signal — but do not build on it. Measured:
 [`eval/caption-ab/`](eval/caption-ab/ERGEBNIS.md).
-
-**The model is not in the image.** It is 54 GB and lives in your model store,
-mounted read-only. Nothing here ever writes into it.
 
 **There is no authentication, no queue, no rate limiting and no persistence.**
 Putting this on a public network means putting an open generator on a public
@@ -104,35 +116,29 @@ something commercial on it:
    (`api@minimax.io`).
 
 **One exception, and it is signposted.** The 1019 reference captions under
-`.claude/skills/musik-caption/` come unchanged from MiniMax-AI and carry the same
-Community License, with its `LICENSE` alongside them. Terms and the exact split
-between their text and ours:
-[`HERKUNFT.md`](.claude/skills/musik-caption/HERKUNFT.md).
+`.claude/skills/musik-caption/` come unchanged from MiniMax-AI under the same
+licence, with its `LICENSE` alongside them — terms and the exact split between
+their text and ours: [`HERKUNFT.md`](.claude/skills/musik-caption/HERKUNFT.md).
 
 Generated audio and `results/` are gitignored and stay local.
 
 ## Where this is going
 
-Nowhere in particular, and that is deliberate. The question this repository set
-out to answer — *does MiniMax-Music3 run on a DGX Spark, and what does it
-actually cost?* — is answered, with numbers. What is missing is named rather
-than planned:
+Nowhere in particular, and that is deliberate. The question it set out to answer
+— *does MiniMax-Music3 run on a DGX Spark, and what does it cost?* — is answered
+above, with numbers. What is missing is named rather than planned:
 
 - **No evaluation of the model.** The other stacks in this family measure theirs
   (WER for TTS, prompt fidelity for image). For music there is no comparable
   metric here; what sounds good is decided by ear. The one narrow exception
   compares caption *forms*, not model quality:
   [`eval/caption-ab/`](eval/caption-ab/ERGEBNIS.md).
-- **Mono compressed output** is reported upstream as
-  [sgl-project/sglang-omni#1549](https://github.com/sgl-project/sglang-omni/issues/1549)
-  and still open. If it lands, the workaround script goes away.
+- **Mono compressed output** is reported upstream and still open; if it lands,
+  the workaround script goes away.
 
 Issues and pull requests are welcome; nobody is on call for them.
 
 ## Going deeper
-
-Everything measured, and every trap that cost time, is written down — just not
-here.
 
 | | |
 |---|---|
