@@ -146,6 +146,42 @@ pad under the chorus, loud and tightly compressed.
 Vocals: clean powerful female lead, layered harmonies in the chorus.
 ```
 
+### BPM is a wish, not a setting
+
+The example above asks for 150 BPM and does not get it. Four generations that
+demanded 150 explicitly — twice as `Basic Attributes: bpm is 150`, twice in the
+long caption form — produced no meaningful pulse at 150 in any of them. The
+autocorrelation of the onset envelope sits at 0.017–0.081 there, against
+0.115–0.210 at whatever tempo each track actually settled on. That method cannot
+resolve an octave, so 87 against 174 stays open; 150 does not.
+
+Write the number down anyway — it costs nothing and reads as a style signal. Just
+do not build on it, and if the tempo really matters, measure the result instead of
+trusting the caption.
+
+One genre, one set of lyrics, four runs. Numbers, method and the two captions:
+[`eval/caption-ab/`](eval/caption-ab/ERGEBNIS.md) (in German).
+
+### The long form is worth it when the arrangement matters
+
+The four-line form above is the quick one. The vendor's reference captions use a
+longer schema — three headings with named fields, the arrangement described
+section by section. In the same A/B run, the long form came out ahead in two
+places and behind in none:
+
+- **The structure becomes reproducible.** Energy curves across two seeds were
+  nearly identical for the long form and ran against each other for the short one
+  (mean deviation 0.055 against 0.325). Describe the arrangement and the seed
+  still picks melody and timbre — but no longer the shape of the piece.
+- **The mix follows the instruction.** Hard panning and strings placed behind the
+  guitars showed up as measurably wider stereo (0.54 against 0.46), with no
+  overlap between the variants.
+- Loudness and dynamics did not differ, and the tempo missed either way.
+
+The full schema, the syllable arithmetic and the pitfalls are in the
+`musik-caption` skill under `.claude/skills/` — it loads by itself when Claude
+Code works in this repository.
+
 ## The web interface
 
 `webui/` is static — no build step, no dependencies. It offers lyrics with
@@ -426,9 +462,14 @@ a public network means putting an open generator on a public network — anyone
 who can reach it can spend your GPU. Fine on a private network for a proof of
 concept, not fine for anything else.
 
-Also missing: an evaluation. The other stacks in this family measure their models
-(WER for TTS, prompt fidelity for image); for music there is no metric here yet.
-What sounds good is decided by ear for now.
+Also missing: an evaluation of the model. The other stacks in this family measure
+theirs (WER for TTS, prompt fidelity for image); there is no comparable metric for
+music here, and what sounds good is still decided by ear.
+
+What does exist is narrower: [`eval/caption-ab/`](eval/caption-ab/ERGEBNIS.md)
+compares two caption forms over four generations and measures tempo, stereo width,
+crest factor and the energy arc. That says something about how to write a caption.
+It says nothing about how good the model is.
 
 ## Ports
 
