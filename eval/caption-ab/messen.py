@@ -81,6 +81,35 @@ def auswerten(pfad: pathlib.Path) -> dict:
     }
 
 
+def variante(name: str) -> str:
+    """`out_c_biblio_seed21_kontrolle.wav` -> `c_biblio_kontrolle`.
+
+    Der Seed faellt weg, alles andere bleibt stehen: Ein Kontrollauf ist eine
+    eigene Gruppe und darf nicht mit dem Arm verrechnet werden, aus dem er
+    stammt.
+    """
+    rumpf = name.removeprefix("out_").removesuffix(".wav")
+    vorn, _, hinten = rumpf.partition("_seed")
+    zusatz = hinten.split("_", 1)
+    return vorn + ("_" + zusatz[1] if len(zusatz) > 1 else "")
+
+
+def bogen_abweichung(gruppe: list[dict]) -> float:
+    """Mittlere Abweichung der Energiebögen zwischen den Seiten einer Gruppe.
+
+    Das ist die Kennzahl des A/B-Laufs: Sie sagt, wie stark der *Aufbau* des
+    Stücks noch am Seed haengt. Klein heisst: Die Caption bestimmt die Form,
+    der Seed nur noch Melodie und Klangfarbe.
+    """
+    boegen = [e["bogen"] for e in gruppe]
+    paare = [(a, b) for i, a in enumerate(boegen) for b in boegen[i + 1 :]]
+    if not paare:
+        return float("nan")
+    return float(
+        np.mean([np.mean(np.abs(np.array(a) - np.array(b))) for a, b in paare])
+    )
+
+
 def main() -> int:
     hier = pathlib.Path(__file__).resolve().parent
     dateien = sorted(hier.glob("out_*.wav"))
@@ -93,19 +122,41 @@ def main() -> int:
     print("-" * len(kopf))
     ergebnisse = []
     for datei in dateien:
-        e = auswerten(datei)
+        # Waehrend `lauf.sh` laeuft, zeigen die Symlinks der noch offenen
+        # Generierungen ins Leere. Das ist kein Fehler, sondern der Normalfall
+        # beim Zwischenstand — ueberspringen und benennen, nicht abbrechen.
+        try:
+            e = auswerten(datei)
+        except Exception as fehler:  # noqa: BLE001 — jede Leseursache ist gleich zu behandeln
+            print(f"{datei.name:28} uebersprungen: {type(fehler).__name__}")
+            continue
         ergebnisse.append(e)
         print(
             f"{e['datei']:28} {e['dauer_s']:>5}s {e['kanaele']:>4} {e['bpm']:>6} "
             f"{e['bpm_fehler']:>5} {e['breite']:>7} {e['crest_db']:>5}  {e['bogen']}"
         )
 
-    print(f"\nZiel: {ZIEL_BPM:.0f} BPM. 'dBPM' ist die Abweichung, kleiner ist besser.")
-    for kennung, name in (("a_kurz", "Kurzform"), ("b_lang", "Langform")):
-        teil = [e for e in ergebnisse if kennung in e["datei"]]
-        if teil:
-            mittel = sum(e["bpm_fehler"] for e in teil) / len(teil)
-            print(f"  {name:9} mittlere Abweichung {mittel:5.1f} BPM  (n={len(teil)})")
+    gruppen: dict[str, list[dict]] = {}
+    for e in ergebnisse:
+        gruppen.setdefault(variante(e["datei"]), []).append(e)
+
+    kopf = f"\n{'Variante':20} {'n':>2} {'dBPM':>6} {'Breite':>7} {'Crest':>6} {'dBogen':>7}"
+    print(kopf)
+    print("-" * len(kopf.strip()))
+    for name, teil in sorted(gruppen.items()):
+        print(
+            f"{name:20} {len(teil):>2} "
+            f"{np.mean([e['bpm_fehler'] for e in teil]):>6.1f} "
+            f"{np.mean([e['breite'] for e in teil]):>7.3f} "
+            f"{np.mean([e['crest_db'] for e in teil]):>6.1f} "
+            f"{bogen_abweichung(teil):>7.3f}"
+        )
+    print(
+        f"\nZiel: {ZIEL_BPM:.0f} BPM; 'dBPM' ist die mittlere Abweichung davon.\n"
+        "'dBogen' ist die mittlere Abweichung der Energiebögen zwischen den Seeds\n"
+        "einer Variante — klein heißt, die Caption bestimmt die Form des Stücks\n"
+        "und nicht mehr der Seed. Bei n=1 steht dort nan."
+    )
     return 0
 
 
