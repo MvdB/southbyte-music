@@ -136,6 +136,17 @@ Wer künftig Captions vergleicht: **Arme desselben Vergleichs gehören auf
 denselben Serverstand.** Ein Kontrollauf kostet zehn Minuten und ist der
 einzige Weg, das überhaupt zu bemerken.
 
+Damit man dafür nicht auf sein Gedächtnis angewiesen ist, schreibt `lauf.sh`
+seit dem 16.08.2026 den Stand neben jede einzelne Generierung — in `stand.tsv`,
+je Zeile Digest, Version und Commit des Servercontainers. Der **Digest**, nicht
+die Bildmarke: Wer mit einer wandernden Marke wie `0.1` oder `latest` fährt und
+automatisch aktualisieren lässt, hat unter derselben Marke morgen ein anderes
+Image, und genau dieser Wechsel ist der oben gemessene Effekt. Gefragt wird vor
+*und* nach jeder Generierung; unterscheiden sich die beiden, wandert die Datei
+nach `.standwechsel` und zählt nicht als Messwert — `messen.py` sieht sie dann
+gar nicht erst. `stand.tsv` bleibt lokal wie die WAVs; in dieses Dokument
+gehört der Stand, unter dem die veröffentlichten Zahlen entstanden sind.
+
 ## Zum Verfahren
 
 Kein librosa auf der Maschine, der Temposchätzer in `messen.py` ist eine
