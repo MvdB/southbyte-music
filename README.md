@@ -16,24 +16,26 @@ so explicitly — the wrong assumptions are usually the useful part.
 
 ## Quick start
 
+Two published images, nothing to build:
+
 ```bash
-# 1. Fetch the model (~54 GB on disk)
+# 1. Fetch the model (~54 GB on disk). It is not in the image — see below.
 hf download MiniMaxAI/MiniMax-Music3 --local-dir ~/hf_models/MiniMaxAI--MiniMax-Music3
 
-# 2. Build the serving image (~2 min; the base image brings the stack)
-docker build -t southbyte-music:lokal -f serving/Dockerfile.music serving/
+# 2. Start the model server and the web interface
+docker compose up -d
 
-# 3. Start the server on port 8011 (ready after ~160 s)
-cd serving && ./run_music.sh
-curl http://127.0.0.1:8011/v1/models
-
-# 4. Serve the web interface
-python3 -m http.server 8080 --directory webui
+# 3. Watch it come up — ready after about 160 s
+docker compose logs -f
 ```
 
 Then open <http://127.0.0.1:8080> and press **Musik erzeugen**. The interface
 ships with a complete example — lyrics, caption, length — so the first run needs
 no input at all.
+
+The images are public: no login, no token. `docker compose down` stops both
+again. More knobs, and how to build it yourself instead, under
+[*Running it with Docker*](#running-it-with-docker).
 
 Or drive the API directly; it is OpenAI-compatible:
 
@@ -96,21 +98,15 @@ Length is capped at **7500 frames**. The `max` attribute only stops the arrow
 keys, so the interface caps again before sending. If the text needs more than
 5:00, it says so and asks you to cut, rather than truncating silently.
 
-### MP3 is mono — a limitation of sglang-omni, not of the model
+### Ask for WAV, not MP3
 
-In `sglang_omni/client/audio.py`, every compressed format is pinned to
-`stream.layout = "mono"`, and multi-channel input is averaged before it gets
-there. The comment in the code names the reason — *"Streaming chunks are mono"* —
-and it is a fair one: that path was written for speech streaming, where mono is
-the norm. `encode_wav` in the same file handles two channels correctly.
+The model produces 32 kHz **stereo**. Every compressed format the server offers
+comes back **mono** — half the signal, discarded silently. That is a limitation
+of the serving stack, not of the model, and the interface defaults to WAV
+because of it.
 
-For a model whose output is 32 kHz **stereo** by design, the most convenient
-output format therefore discards half the signal, silently. The interface
-defaults to **WAV** for that reason; MP3 stays available with the caveat next to
-it.
-
-For a stereo MP3, re-encode the WAV afterwards. The ffmpeg for it is already in
-the serving image, so nothing needs installing on the host:
+For a stereo MP3, re-encode afterwards. The ffmpeg for it is already in the
+serving image, so nothing needs installing on the host:
 
 ```bash
 serving/wav_zu_mp3.sh song.wav              # -> song.mp3, 192 kbit/s, stereo
@@ -118,9 +114,10 @@ serving/wav_zu_mp3.sh song.wav final.mp3 320
 ```
 
 The script checks its own output and aborts if it came out single-channel after
-all. Reported upstream as
-[sgl-project/sglang-omni#1549](https://github.com/sgl-project/sglang-omni/issues/1549);
-the analysis is kept in [`docs/upstream-issue-mono.md`](docs/upstream-issue-mono.md).
+all. Where exactly this happens in the code, and why, is in
+[`docs/upstream-issue-mono.md`](docs/upstream-issue-mono.md); reported upstream
+as [sgl-project/sglang-omni#1549](https://github.com/sgl-project/sglang-omni/issues/1549),
+still open.
 
 ### Write the caption in English
 
@@ -199,10 +196,14 @@ Three cases:
 
 | Value | Meaning |
 |---|---|
-| `""` | derive from the page address: same host, port 8011. The normal local case |
-| `SOUTHBYTE_ENDPUNKT` | in the container image, sets this value at startup. Defaults to `/` — behind the built-in proxy that is nearly always right |
-| `"/"` | same origin as the page. For a reverse proxy in front, which is how the Kubernetes chart runs it |
+| `""` | derive from the page address: same host, port 8011. For serving `webui/` straight off the disk, without a proxy |
+| `"/"` | same origin as the page, so through a reverse proxy. This is what compose and the Kubernetes chart both use |
 | a URL | wherever the music server actually is |
+
+In the container the file is written at startup from `SOUTHBYTE_ENDPUNKT`, which
+defaults to `/`. That default arrived after `v0.1.0`, so image tag `0.1.0` still
+ignores the variable — one more reason the pinned tag in `compose.yaml` is
+`0.1.1`.
 
 The resolved endpoint is shown in the page footer, so a misconfiguration stays
 visible without being editable.
@@ -210,34 +211,86 @@ visible without being editable.
 The interface is in German; the code and configuration are documented in German
 too, which is the house style across this family of repositories.
 
-## Running it on Kubernetes
+## Running it with Docker
 
-There is a Helm chart under `charts/southbyte-music`. Two images, built for
-`linux/amd64` and `linux/arm64` and published to GHCR:
+This is the common case on a single machine, and the one `compose.yaml` is for.
+Two images, built natively for `linux/amd64` and `linux/arm64` and published to
+GHCR:
 
 | Image | Contents | Size |
 |---|---|---|
-| `ghcr.io/mvdb/southbyte-music` | the model server (SGLang-Omni) | 26.5 GB unpacked |
+| `ghcr.io/mvdb/southbyte-music` | the model server | 26.5 GB unpacked |
 | `ghcr.io/mvdb/southbyte-music-webui` | nginx with the interface and a reverse proxy | 54 MB |
 
-Tags: `0.1.0` and `0.1` come from git tags, `main` follows the default branch,
-`latest` tracks `main`, and `sha-<short>` pins an exact commit. Use a version tag
-for anything you care about; `main` and `latest` move under you by design.
+Both are **public** — `docker pull` needs no login and no token.
 
-```bash
-docker pull ghcr.io/mvdb/southbyte-music:main
-docker buildx imagetools inspect ghcr.io/mvdb/southbyte-music:main   # both platforms
-```
+Tags: `0.1.1` and `0.1` come from git tags, `main` follows the default branch,
+`latest` tracks `main`, and `sha-<short>` pins an exact commit. `compose.yaml`
+pins a version tag on purpose; `main` and `latest` move under you by design.
 
 The server image is large because the SGLang base image is 24.6 GB of it. That
 is not something this repository can trim: the version is pinned to
 `sglang==0.5.16`, which is what `sglang-omni` requires.
 
-> **Package visibility is separate from repository visibility.** Making this
-> repository public does not publish its GHCR packages — that is a per-package
-> setting under *Packages → southbyte-music → Package settings → Change
-> visibility*, and GitHub exposes no REST endpoint for it. Until it is flipped,
-> `docker pull` needs a token with `read:packages`.
+### What compose sets up
+
+`southbyte-music` gets the GPU, mounts the model store **read-only** and
+publishes the API on 8011. `webui` is nginx: it serves the page and proxies
+`/v1/` through to the server, so the browser only ever talks to one address —
+no CORS, no second port to expose. Knobs, all optional:
+
+| Variable | Default | |
+|---|---|---|
+| `SOUTHBYTE_MUSIC_VERSION` | `0.1.1` | tag for both images |
+| `HF_MODELS_DIR` | `$HOME/hf_models` | where the model lives |
+| `MODEL_DIR` | `MiniMaxAI--MiniMax-Music3` | the directory inside it |
+| `MUSIK_PORT` / `WEBUI_PORT` | `8011` / `8080` | host ports |
+
+The model is deliberately **not** in the image. It is 54 GB — that would have to
+move on every rebuild and every pull, and in Kubernetes it is data rather than
+code anyway.
+
+Measured on the DGX Spark with `compose.yaml` as it stands: server ready after
+160 s, a 10 s piece generated through the nginx proxy in 49 s, output 32 kHz
+stereo 16 bit.
+
+### Without compose
+
+`serving/run_music.sh` starts the server alone. It does what compose does, plus
+one thing compose deliberately does not: it can load a machine profile from
+[southbyte-spark-profiles](https://github.com/MvdB/southbyte-spark-profiles).
+
+```bash
+cd serving && ./run_music.sh                                   # locally built image
+IMAGE=ghcr.io/mvdb/southbyte-music:0.1.1 ./run_music.sh        # the published one
+```
+
+### Building it yourself
+
+```bash
+docker build -t southbyte-music:lokal -f serving/Dockerfile.music serving/   # ~2 min
+```
+
+The base image brings the stack, so this is mostly a `pip install` and a few
+files. Getting that Dockerfile to work took several attempts, and the reasons
+are not obvious from anyone's documentation — they are collected in
+[`docs/sglang-omni-notizen.md`](docs/sglang-omni-notizen.md).
+
+CI builds both architectures but has no GPU, so it can only prove that things
+install. Whether the image *runs* is a separate step, on the hardware:
+
+```bash
+serving/pruefe_image.sh                                     # locally built image
+serving/pruefe_image.sh ghcr.io/mvdb/southbyte-music:0.1.1  # the published one
+```
+
+It pulls, starts, waits for readiness, generates a short piece and checks the
+WAV header — 32 kHz, stereo, plausible length. A 200 response only proves that
+something came back.
+
+## Running it on Kubernetes
+
+There is a Helm chart under `charts/southbyte-music`, using the same two images.
 
 ```bash
 # From the published chart — resolves to the newest release
@@ -245,7 +298,7 @@ helm install musik oci://ghcr.io/mvdb/charts/southbyte-music \
   --namespace musik --create-namespace
 
 # Pin a version
-helm install musik oci://ghcr.io/mvdb/charts/southbyte-music --version 0.1.0 \
+helm install musik oci://ghcr.io/mvdb/charts/southbyte-music --version 0.1.1 \
   --namespace musik --create-namespace
 
 # Or from a checkout
@@ -253,7 +306,7 @@ helm install musik charts/southbyte-music \
   --namespace musik --create-namespace
 ```
 
-Every push to `main` also publishes a SemVer *pre-release* (`0.1.0-main.7`).
+Every push to `main` also publishes a SemVer *pre-release* (`0.1.1-main.3`).
 Helm ignores those unless you pass `--devel` or name one with `--version`, so
 plain `helm install` always lands on a tagged release and never on whatever was
 merged last.
@@ -263,8 +316,8 @@ version always deploys exactly those images and cannot drift onto a newer build.
 A checkout instead uses whatever `Chart.yaml` says, which on `main` is the moving
 `main` tag.
 
-The first start takes a while — see below — and the chart's `NOTES.txt` tells
-you which log to watch.
+The first start takes a while — the model has to reach the volume first, see
+below — and the chart's `NOTES.txt` tells you which log to watch.
 
 ### The model is not in the image
 
@@ -358,20 +411,12 @@ evicted every run anyway.
 
 **The build needs no GPU.** It installs packages and runs an import guard; CUDA
 is only touched at runtime. What CI therefore *cannot* tell you is whether the
-thing actually runs on a card. That is a separate step, on the hardware:
+thing actually runs on a card — that is `serving/pruefe_image.sh`, under
+[*Building it yourself*](#building-it-yourself). Last run on the DGX Spark:
+ready after 166 s, 250 frames in 50 s, output 32 kHz stereo.
 
-```bash
-serving/pruefe_image.sh                                  # locally built image
-serving/pruefe_image.sh ghcr.io/mvdb/southbyte-music:main  # the published one
-```
-
-It pulls, starts, waits for readiness, generates a short piece and checks the
-WAV header — 32 kHz, stereo, plausible length. A 200 response only proves that
-something came back.
-
-Last run on the DGX Spark: ready after 166 s, 250 frames in 50 s, output 32 kHz
-stereo. The `linux/amd64` image builds but has never run anywhere — there is no
-x86 GPU here.
+The `linux/amd64` image builds but has never run anywhere — there is no x86 GPU
+here.
 
 ### Security posture
 
@@ -406,34 +451,6 @@ the same model a second time on disk, in a different format, outside the model
 store — and ComfyUI loads it itself, which collides with the serving path.
 Headless/API operation is undocumented. As a node editor for trying out
 parameters it stays useful; as the foundation for a music interface it does not.
-
-## Notes for anyone rebuilding this
-
-These cost time and are not obvious from the documentation.
-
-**`sgl-omni` is not in the standard image.** The `lmsysorg/sglang` images contain
-only `sglang`, `sglang-kernel` and `sglang-router`; there is no `sgl-omni` binary
-and no `sglang_omni` module. SGLang-Omni is a separate project, the way vllm-omni
-sits next to vllm — hence the extra install step in `serving/Dockerfile.music`.
-
-**The PyPI release does not know MiniMax-Music3.** Version 0.1.1 aborts at
-startup with `Config for MiniMaxMusic3ForConditionalGeneration not found in the
-pipeline config registry`. Support landed in commit `05e268a4` (2026-08-13),
-hence the install from `git main`.
-
-**`flashinfer-cubin` has to go.** The sglang-omni cookbook warns explicitly that
-*"any leftover cubin wheel fails MiniMax DIT import"*, and the base image ships
-exactly such a leftover wheel.
-
-**The model store stays read-only.** At startup, sglang-omni normalises
-`qwen_7B/qwen_7B/config.json` (`model_type` from `mixtral` to `qwen3`) and fails
-against a read-only mount. Rather than opening up the store, `run_music.sh`
-overlays a single pre-normalised copy of that one file — the function then
-returns immediately without writing.
-
-**flash-attn does not need building.** The base image ships `flash-attn-4`, and
-the server picks `torch_sdpa` anyway. A source build would have taken over 100
-minutes on this hardware.
 
 ## Model licence — obligations you inherit
 
@@ -473,9 +490,10 @@ It says nothing about how good the model is.
 
 ## Ports
 
-| Port | Service |
-|---|---|
-| 8011 | `serving/run_music.sh` (MiniMax-Music3 via SGLang-Omni) |
+| Port | Service | Set by |
+|---|---|---|
+| 8011 | the model server (MiniMax-Music3 via SGLang-Omni) | `MUSIK_PORT`, or `HOST_PORT` for `run_music.sh` |
+| 8080 | the web interface | `WEBUI_PORT` |
 
 8000–8010 are taken by the other stacks in this family (vLLM, TTS adapters, STT
 judges, image).
