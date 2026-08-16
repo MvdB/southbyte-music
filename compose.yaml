@@ -15,7 +15,7 @@
 #
 # Einstellbar ueber die Umgebung (oder eine .env-Datei daneben):
 #
-#   SOUTHBYTE_MUSIC_VERSION   Bildmarke beider Images, Vorgabe 0.1.1
+#   SOUTHBYTE_MUSIC_VERSION   Bildmarke beider Images, Vorgabe 0.1.2
 #   HF_MODELS_DIR             Modellspeicher, Vorgabe $HOME/hf_models
 #   MODEL_DIR                 Modellverzeichnis darin
 #   MUSIK_PORT / WEBUI_PORT   Wirtsports, Vorgabe 8011 und 8080
@@ -34,7 +34,7 @@ services:
     # Der Dienstname ist Teil der Schnittstelle: Die Oberflaeche gibt
     # http://southbyte-music:8000 als Vorgabe mit. Wer ihn aendert, muss
     # MUSIK_DIENST unten mitaendern.
-    image: ghcr.io/mvdb/southbyte-music:${SOUTHBYTE_MUSIC_VERSION:-0.1.1}
+    image: ghcr.io/mvdb/southbyte-music:${SOUTHBYTE_MUSIC_VERSION:-0.1.2}
     container_name: southbyte-music
     restart: unless-stopped
     gpus: all
@@ -62,7 +62,7 @@ services:
       HF_HUB_OFFLINE: "1"
 
   webui:
-    image: ghcr.io/mvdb/southbyte-music-webui:${SOUTHBYTE_MUSIC_VERSION:-0.1.1}
+    image: ghcr.io/mvdb/southbyte-music-webui:${SOUTHBYTE_MUSIC_VERSION:-0.1.2}
     container_name: southbyte-music-webui
     restart: unless-stopped
     ports:

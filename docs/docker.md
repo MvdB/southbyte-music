@@ -27,12 +27,12 @@ Two, built natively for `linux/amd64` and `linux/arm64` and published to GHCR:
 
 Both are **public** — `docker pull` needs no login and no token.
 
-Tags: `0.1.1` and `0.1` come from git tags, `main` follows the default branch,
+Tags: `0.1.2` and `0.1` come from git tags, `main` follows the default branch,
 `latest` tracks `main`, and `sha-<short>` pins an exact commit. `compose.yaml`
 pins a version tag on purpose; `main` and `latest` move under you by design.
 
 ```bash
-docker buildx imagetools inspect ghcr.io/mvdb/southbyte-music:0.1.1   # both platforms
+docker buildx imagetools inspect ghcr.io/mvdb/southbyte-music:0.1.2   # both platforms
 ```
 
 The server image is large because the SGLang base image is 24.6 GB of it. That is
@@ -48,7 +48,7 @@ expose. Knobs, all optional:
 
 | Variable | Default | |
 |---|---|---|
-| `SOUTHBYTE_MUSIC_VERSION` | `0.1.1` | tag for both images |
+| `SOUTHBYTE_MUSIC_VERSION` | `0.1.2` | tag for both images |
 | `HF_MODELS_DIR` | `$HOME/hf_models` | where the model lives |
 | `MODEL_DIR` | `MiniMaxAI--MiniMax-Music3` | the directory inside it |
 | `MUSIK_PORT` / `WEBUI_PORT` | `8011` / `8080` | host ports |
@@ -63,7 +63,7 @@ Measured on the DGX Spark with `compose.yaml` as it stands: server ready after
 
 Note that image tag `0.1.0` predates runtime endpoint configuration and ignores
 `SOUTHBYTE_ENDPUNKT`; the browser then addresses port 8011 directly instead of
-going through the proxy. That is why the pinned tag is `0.1.1`. See
+going through the proxy. That is why the pinned tag is `0.1.2`. See
 [`oberflaeche.md`](oberflaeche.md).
 
 ## Without compose
@@ -74,7 +74,7 @@ thing compose deliberately does not: it can load a machine profile from
 
 ```bash
 cd serving && ./run_music.sh                                   # locally built image
-IMAGE=ghcr.io/mvdb/southbyte-music:0.1.1 ./run_music.sh        # the published one
+IMAGE=ghcr.io/mvdb/southbyte-music:0.1.2 ./run_music.sh        # the published one
 ```
 
 ## Building it yourself
@@ -93,7 +93,7 @@ install. Whether the image *runs* is a separate step, on the hardware:
 
 ```bash
 serving/pruefe_image.sh                                     # locally built image
-serving/pruefe_image.sh ghcr.io/mvdb/southbyte-music:0.1.1  # the published one
+serving/pruefe_image.sh ghcr.io/mvdb/southbyte-music:0.1.2  # the published one
 ```
 
 It pulls, starts, waits for readiness, generates a short piece and checks the WAV
