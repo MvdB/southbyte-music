@@ -1,0 +1,85 @@
+# MiniMax-Music3 auf einer einzelnen Maschine: Modellserver und Oberflaeche.
+#
+#   docker compose up -d          # startet beides, bereit nach ~160 s
+#   docker compose logs -f        # zusehen, bis "server is ready" steht
+#   docker compose down           # beendet beides
+#
+# Danach <http://127.0.0.1:8080> im Browser, die API liegt auf 8011.
+#
+# Voraussetzung ist das Modell im Modellspeicher — es steckt NICHT im Image.
+# 54 GB in ein Image zu packen hiesse, sie bei jedem Neubau und jedem Pull
+# wieder zu bewegen:
+#
+#   hf download MiniMaxAI/MiniMax-Music3 \
+#     --local-dir "$HOME/hf_models/MiniMaxAI--MiniMax-Music3"
+#
+# Einstellbar ueber die Umgebung (oder eine .env-Datei daneben):
+#
+#   SOUTHBYTE_MUSIC_VERSION   Bildmarke beider Images, Vorgabe 0.1.1
+#   HF_MODELS_DIR             Modellspeicher, Vorgabe $HOME/hf_models
+#   MODEL_DIR                 Modellverzeichnis darin
+#   MUSIK_PORT / WEBUI_PORT   Wirtsports, Vorgabe 8011 und 8080
+#
+# Bewusst feste Bildmarke statt `latest`: Wer das hier startet, will ein Stueck
+# Musik und keine Ueberraschung beim naechsten `docker compose pull`.
+#
+# Wer das Serving-Image lieber selbst baut, nimmt `serving/run_music.sh` — das
+# Skript kann Profile aus southbyte-spark-profiles laden, was hier absichtlich
+# fehlt. Fuer Kubernetes gibt es das Helm-Chart unter charts/southbyte-music;
+# dort holt ein initContainer das Modell in ein PersistentVolume, statt es
+# einzubinden.
+
+services:
+  southbyte-music:
+    # Der Dienstname ist Teil der Schnittstelle: Die Oberflaeche gibt
+    # http://southbyte-music:8000 als Vorgabe mit. Wer ihn aendert, muss
+    # MUSIK_DIENST unten mitaendern.
+    image: ghcr.io/mvdb/southbyte-music:${SOUTHBYTE_MUSIC_VERSION:-0.1.1}
+    container_name: southbyte-music
+    restart: unless-stopped
+    gpus: all
+    # Torch legt Shared Memory zwischen seinen Arbeitsprozessen an; die 64 MB,
+    # die Docker per Vorgabe gibt, reichen dafuer nicht.
+    ipc: host
+    ports:
+      # Die Oberflaeche braucht diesen Port nicht — sie geht ueber das interne
+      # Netz. Er steht hier fuer den direkten Zugriff auf die API.
+      - "${MUSIK_PORT:-8011}:8000"
+    volumes:
+      - ${HF_MODELS_DIR:-${HOME}/hf_models}:/hf_models:ro
+      # sglang-omni normalisiert beim Start model_type von "mixtral" auf
+      # "qwen3" und schreibt die Datei dafuer neu — im read-only eingebundenen
+      # Modellspeicher scheitert das mit "Read-only file system". Die Funktion
+      # kehrt aber sofort zurueck, wenn der Wert schon stimmt. Deshalb liegt
+      # hier eine bereits normalisierte Kopie ueber genau dieser einen Datei;
+      # der Modellspeicher bleibt unangetastet.
+      - ./serving/overrides/qwen_7B_config.json:/hf_models/${MODEL_DIR:-MiniMaxAI--MiniMax-Music3}/qwen_7B/qwen_7B/config.json:ro
+    environment:
+      MODEL_PATH: /hf_models/${MODEL_DIR:-MiniMaxAI--MiniMax-Music3}
+      # Ohne diese beiden versucht das Modell beim Start, HuggingFace zu
+      # fragen, und haengt auf einer Maschine ohne Netz in Zeitueberschreitungen.
+      TRANSFORMERS_OFFLINE: "1"
+      HF_HUB_OFFLINE: "1"
+
+  webui:
+    image: ghcr.io/mvdb/southbyte-music-webui:${SOUTHBYTE_MUSIC_VERSION:-0.1.1}
+    container_name: southbyte-music-webui
+    restart: unless-stopped
+    ports:
+      - "${WEBUI_PORT:-8080}:8080"
+    environment:
+      # Wohin nginx /v1/ weiterreicht. Der Vorgabewert des Images passt schon;
+      # ausgeschrieben steht er hier, damit die Kopplung an den Dienstnamen
+      # oben sichtbar ist und nicht in einem Dockerfile versteckt bleibt.
+      MUSIK_DIENST: http://southbyte-music:8000
+      # "/" heisst: gleiche Herkunft wie die Seite, also ueber den Proxy. Der
+      # Browser spricht damit nur eine Adresse an — kein CORS, kein zweiter
+      # Port nach aussen.
+      SOUTHBYTE_ENDPUNKT: /
+    depends_on:
+      southbyte-music:
+        # Nur "started" statt "healthy": Das Modell braucht ~160 s, bis es
+        # antwortet. Die Oberflaeche schon so lange zurueckzuhalten waere
+        # unnoetig — sie laedt in Millisekunden und zeigt die Wartezeit selbst
+        # an, statt den Browser ins Leere laufen zu lassen.
+        condition: service_started

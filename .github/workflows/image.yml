@@ -307,6 +307,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v5
+        with:
+          # `git describe` unten braucht die Tags; der flache Standard-Klon
+          # bringt weder Historie noch Tags mit und liefert sonst v0.0.0.
+          fetch-depth: 0
       - uses: azure/setup-helm@v4
         with:
           version: v3.16.4
@@ -339,7 +343,15 @@ jobs:
             # main: SemVer-Vorabversion. Die Laufnummer steigt monoton und hat
             # keine fuehrenden Nullen — beides verlangt SemVer 2 von einem
             # numerischen Bezeichner.
-            CHART="0.1.0-main.${{ github.run_number }}"
+            #
+            # Die Basis wird aus dem letzten Tag abgeleitet und nicht fest
+            # hingeschrieben. Stand hier eine feste 0.1.0, waere nach dem Tag
+            # v0.1.1 jede Vorabversion KLEINER als das Release gewesen — und
+            # `helm install --devel` haette weiter 0.1.1 geliefert statt des
+            # neuesten main. Der Zweck von --devel waere damit still entfallen.
+            LETZTES="$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null || echo v0.0.0)"
+            NAECHSTES="$(echo "${LETZTES#v}" | awk -F. '{print $1"."$2"."$3+1}')"
+            CHART="${NAECHSTES}-main.${{ github.run_number }}"
             APP="${KURZ}"
           fi
           sed -i "s|^version:.*|version: ${CHART}|" charts/southbyte-music/Chart.yaml
