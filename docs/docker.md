@@ -31,6 +31,29 @@ Tags: `0.1.2` and `0.1` come from git tags, `main` follows the default branch,
 `latest` tracks `main`, and `sha-<short>` pins an exact commit. `compose.yaml`
 pins a version tag on purpose; `main` and `latest` move under you by design.
 
+| Tag | Moves when | Use it for |
+|---|---|---|
+| `0.1.2`, `sha-<short>` | never | a run whose result has to stay attributable |
+| `0.1` | a release is tagged | unattended updates that should stay on releases |
+| `latest`, `main` | every push to `main` | following the branch head deliberately |
+
+If something updates the images for you — Watchtower, a Kubernetes image
+policy, a nightly `docker compose pull` — `0.1` is usually the tag you want:
+it needs no maintenance like `latest`, but it does not hand you an untagged
+work-in-progress build either. Whichever moving tag you pick, record the
+**digest** with the results rather than the tag, because the tag alone no
+longer identifies what ran:
+
+```bash
+docker inspect --format '{{index .RepoDigests 0}}' southbyte-music
+```
+
+That matters more than it sounds: a change of server version demonstrably
+changes the output at a fixed seed, while two runs on the same version are
+identical to the last digit. See
+[`../eval/caption-ab/ERGEBNIS.md`](../eval/caption-ab/ERGEBNIS.md); `lauf.sh`
+records the digest of every generation for exactly this reason.
+
 ```bash
 docker buildx imagetools inspect ghcr.io/mvdb/southbyte-music:0.1.2   # both platforms
 ```

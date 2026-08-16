@@ -2,3 +2,9 @@
 # `lauf.sh` erzeugt sie neu, `messen.py` liest sie von hier.
 out_*.wav
 anfrage.json
+
+# Rohprotokoll der eigenen Laeufe: eine Zeile je Generierung mit Digest,
+# Version und Commit des Servers. Bleibt lokal wie die WAVs -- in ERGEBNIS.md
+# steht der Stand, unter dem die veroeffentlichten Zahlen entstanden sind.
+stand.tsv
+*.standwechsel
