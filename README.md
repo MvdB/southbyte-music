@@ -497,6 +497,18 @@ Code in this repository is MIT. The model, its weights and its output are covere
 by the MiniMax-Music3 Community License linked above — that licence travels with
 the model, not with this repository.
 
+**One exception, and it is signposted.** `.claude/skills/musik-caption/references/`
+and `templates/` are 1019 files taken unchanged from
+[`music-caption-rewriter`](https://github.com/MiniMax-AI/MiniMax-Music3/tree/main/skills/music-caption-rewriter)
+in MiniMax-AI's repository — a genre router, 18 family indexes and 1000 reference
+captions. They carry the same MiniMax-Music3 Community License, which permits
+redistribution as long as the notice travels along; it does, as `LICENSE` in that
+directory. The obligations that come with it, including the commercial ones, are
+spelled out in
+[`.claude/skills/musik-caption/HERKUNFT.md`](.claude/skills/musik-caption/HERKUNFT.md).
+Everything else under that path, `SKILL.md` included, is our own text and MIT like
+the rest.
+
 ---
 
 Built by [southbyte](https://southbyte.de).
