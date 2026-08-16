@@ -71,9 +71,17 @@ closer to 1980s Neue Deutsche Welle than to metal. The same lyrics with an
 English caption in the documented format hit the genre far better.
 
 Lyrics in other languages are fine; only the caption needs to be English. Two
-things to expect with German lyrics, both observed: the model sings *BYTE* as
-though it were German, and umlauts have to be transliterated or they get
-swallowed — which then looks odd in the text box.
+things to expect with German lyrics, both observed:
+
+- **Transliterate the umlauts.** Otherwise the model swallows them — which then
+  looks odd in the text box, but is the lesser evil.
+- **English words inside German lines are a mixed bag.** An all-caps brand-style
+  word came out pronounced as though it were German. English **proper names**,
+  on the other hand, were sung correctly in otherwise German lines in every case
+  observed so far — no need to respell them phonetically before trying.
+
+That is a handful of songs, not a study. When a particular word matters, listen
+to it once rather than trusting either rule.
 
 The documented caption format, and the more specific the better:
 

@@ -73,7 +73,9 @@ not the model. For a stereo MP3, re-encode afterwards with
 **Write the caption in English.** A German style description pulls the result
 audibly towards German-language pop — *"Melodischer Metal, 150 BPM"* produced
 something closer to 1980s Neue Deutsche Welle than to metal. Lyrics in any
-language are fine; only the caption needs to be English.
+language are fine — with German ones, transliterate the umlauts; English proper
+names inside German lines came out right every time so far
+([`docs/modell.md`](docs/modell.md)).
 
 **BPM is a wish, not a setting.** Four runs demanding 150 BPM explicitly hit it
 in none. Write the number down anyway — it costs nothing and reads as a style
