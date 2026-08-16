@@ -44,8 +44,15 @@ jobs:
       - name: ruff format
         run: ruff format --check .
 
+      # globstar ist noetig, sonst ist `**` nur ein `*` und der Waechter sieht
+      # ausschliesslich Python eine Ebene tief. `eval/caption-ab/messen.py` liegt
+      # zwei Ebenen tief und blieb damit unsichtbar — mypy waere stillschweigend
+      # uebersprungen worden, wenn nicht zufaellig `serving/pruefe_registry.py`
+      # den Waechter ausgeloest haette. Ein Gate, das aus Versehen greift, ist
+      # keines.
       - name: mypy
         run: |
+          shopt -s globstar
           if compgen -G "**/*.py" > /dev/null; then
             mypy --ignore-missing-imports .
           else
