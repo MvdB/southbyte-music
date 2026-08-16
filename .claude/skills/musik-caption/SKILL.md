@@ -93,8 +93,8 @@ nachgelaufen sind, sagt dieser Skill über die Bibliothek nichts aus.
 
 ### Kurzform — vier Zeilen
 
-Der dokumentierte Stand aus dem Kochbuch, und was in der Weboberfläche steht.
-Für schnelle Versuche und wenn nur das Genre sitzen soll.
+Der dokumentierte Stand aus dem Kochbuch. Für schnelle Versuche und wenn nur
+das Genre sitzen soll — die Weboberfläche zeigt seit `4adec66` die Langform.
 
 ```
 Basic Attributes: bpm is 150, key is E minor, Melodic Heavy Metal / Symphonic Metal.
