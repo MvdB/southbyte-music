@@ -48,8 +48,17 @@ Gitarrenwand"* klang näher an Neuer Deutscher Welle als an Metal. Dieselben
 Lyrics mit englischer Caption trafen das Genre deutlich besser.
 
 **Lyrics dürfen jede Sprache haben.** Bei deutschen zwei beobachtete Eigenheiten:
-Umlaute müssen umschrieben werden, sonst verschluckt das Modell sie, und
-englische Wörter werden deutsch ausgesprochen.
+
+- **Umlaute umschreiben**, sonst verschluckt das Modell sie. Im Textfeld sieht
+  das schief aus, gesungen ist es das kleinere Übel.
+- **Englische Wörter in deutschen Zeilen sind uneinheitlich.** Ein durchgehend
+  großgeschriebenes markenartiges Wort kam deutsch ausgesprochen heraus.
+  Englische **Eigennamen** dagegen wurden in sonst deutschen Zeilen bisher
+  ausnahmslos richtig gesungen — sie also nicht vorsorglich lautschriftlich
+  umschreiben, das verschlimmert es nur.
+
+Das sind eine Handvoll Stücke, keine Untersuchung. Wo ein bestimmtes Wort zählt,
+einmal hinhören statt einer der beiden Regeln zu glauben.
 
 ## Das Schema
 
