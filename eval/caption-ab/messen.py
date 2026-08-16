@@ -31,14 +31,17 @@ def tempo(mono: np.ndarray, sr: int) -> float:
     hop = max(1, sr // 100)
     rahmen = len(mono) // hop
     energie = np.array(
-        [np.sqrt(np.mean(mono[i * hop:(i + 1) * hop] ** 2) + 1e-12) for i in range(rahmen)]
+        [
+            np.sqrt(np.mean(mono[i * hop : (i + 1) * hop] ** 2) + 1e-12)
+            for i in range(rahmen)
+        ]
     )
     huelle = np.diff(energie, prepend=energie[0]).clip(min=0)
     huelle -= huelle.mean()
     if not np.any(huelle):
         return float("nan")
 
-    ak = np.correlate(huelle, huelle, mode="full")[len(huelle) - 1:]
+    ak = np.correlate(huelle, huelle, mode="full")[len(huelle) - 1 :]
     fps = sr / hop
     lo, hi = int(fps * 60 / 220), int(fps * 60 / 60)
     if hi <= lo or hi >= len(ak):
@@ -50,17 +53,19 @@ def auswerten(pfad: pathlib.Path) -> dict:
     daten, sr = sf.read(str(pfad), always_2d=True)
     mono = daten.mean(axis=1)
     spitze = float(np.max(np.abs(mono))) or 1e-12
-    effektiv = float(np.sqrt(np.mean(mono ** 2)))
+    effektiv = float(np.sqrt(np.mean(mono**2)))
 
     if daten.shape[1] == 2:
         seite = daten[:, 0] - daten[:, 1]
         mitte = daten[:, 0] + daten[:, 1]
-        breite = float(np.sqrt(np.mean(seite ** 2)) / (np.sqrt(np.mean(mitte ** 2)) + 1e-12))
+        breite = float(
+            np.sqrt(np.mean(seite**2)) / (np.sqrt(np.mean(mitte**2)) + 1e-12)
+        )
     else:
         breite = 0.0
 
     viertel = np.array_split(mono, 4)
-    bogen = [float(np.sqrt(np.mean(v ** 2)) / (effektiv + 1e-12)) for v in viertel]
+    bogen = [float(np.sqrt(np.mean(v**2)) / (effektiv + 1e-12)) for v in viertel]
 
     geschaetzt = tempo(mono, sr)
     return {
