@@ -21,7 +21,7 @@ Belege im README unter *Measured on the DGX Spark*.
 | Frames aus Text | ~**1,62 gesungene Silben pro Sekunde**. Silben zählen, durch 1,62 teilen, 20 % Reserve draufrechnen |
 | Early Stop | Großzügig aufrunden ist gratis: Das Modell hört von selbst auf und meldet `finish_reason=stop` |
 | Rechenzeit | ~5–6× der Spielzeit; die Oberfläche rechnet mit 22 s Fixkosten plus 0,211 s je Frame |
-| Ausgabe | WAV ist 32 kHz **stereo**. MP3 ist **mono** — eine Grenze von sglang-omni, nicht des Modells. Für Stereo-MP3 hinterher `serving/wav_zu_mp3.sh` |
+| Ausgabe | WAV ist 32 kHz **stereo**. Nicht-streamendes MP3 ist mit SGLang-Omni v0.1.3 ebenfalls **stereo**; nur Raw-PCM-Streaming bleibt mono. `serving/wav_zu_mp3.sh` wählt bei vorhandenen WAV-Dateien gezielt Bitrate und Namen |
 
 ### BPM ist ein Wunsch, keine Vorgabe
 

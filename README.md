@@ -82,10 +82,9 @@ shape of the piece. Numbers and recipe:
 **It is slow, and predictably so.** A three-minute song is about a quarter of an
 hour. The interface estimates it up front rather than leaving you guessing.
 
-**Ask for WAV, not MP3.** Every compressed format the server offers comes back
-**mono**, silently discarding half of a stereo signal. That is the serving stack,
-not the model. For a stereo MP3, re-encode afterwards with
-`serving/wav_zu_mp3.sh`. Details: [`docs/upstream-issue-mono.md`](docs/upstream-issue-mono.md).
+**Choose the format you need.** SGLang-Omni v0.1.3 preserves the model's stereo
+signal in non-streaming MP3, FLAC, Opus and AAC responses. Streaming audio remains
+mono by design. Background: [`docs/upstream-issue-mono.md`](docs/upstream-issue-mono.md).
 
 **Write the caption in English.** A German one pulls the result audibly towards
 German-language pop — *"Melodischer Metal, 150 BPM"* landed closer to 1980s Neue
@@ -133,8 +132,9 @@ above, with numbers. What is missing is named rather than planned:
   metric here; what sounds good is decided by ear. The one narrow exception
   compares caption *forms*, not model quality:
   [`eval/caption-ab/`](eval/caption-ab/ERGEBNIS.md).
-- **Mono compressed output** is reported upstream and still open; if it lands,
-  the workaround script goes away.
+- **No hardware regression for v0.1.3 yet.** Upstream's deterministic CPU tests
+  cover stereo encoding; a real MiniMax-Music3 MP3 request on the GB10 still needs
+  to verify the deployed image.
 
 Issues and pull requests are welcome; nobody is on call for them.
 
@@ -148,7 +148,7 @@ Issues and pull requests are welcome; nobody is on call for them.
 | [`docs/oberflaeche.md`](docs/oberflaeche.md) | The web interface and the one setting that matters, the endpoint |
 | [`docs/entscheidungen.md`](docs/entscheidungen.md) | Why SGLang-Omni and not a custom adapter, why not ComfyUI |
 | [`docs/sglang-omni-notizen.md`](docs/sglang-omni-notizen.md) | Rebuilding the serving image: version coupling, the read-only model store, and four other things that are not in anyone's documentation |
-| [`docs/upstream-issue-mono.md`](docs/upstream-issue-mono.md) | Where compressed output loses a channel, and why |
+| [`docs/upstream-issue-mono.md`](docs/upstream-issue-mono.md) | The resolved mono-output bug and its scope |
 
 Writing captions is its own craft. The `musik-caption` skill under
 `.claude/skills/` carries the full schema, the syllable arithmetic and 1000

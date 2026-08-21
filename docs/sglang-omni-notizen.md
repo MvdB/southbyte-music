@@ -15,7 +15,7 @@ Checked on 2026-08-14 in `lmsysorg/sglang:dev`. SGLang-Omni is a separate
 project, the way vllm-omni sits next to vllm — hence the extra install step in
 the Dockerfile.
 
-## The PyPI release does not know MiniMax-Music3
+## Use v0.1.3, not the old PyPI release
 
 Version 0.1.1 aborts at startup with
 
@@ -23,12 +23,12 @@ Version 0.1.1 aborts at startup with
 Config for MiniMaxMusic3ForConditionalGeneration not found in the pipeline config registry
 ```
 
-Support landed in commit `05e268a4` (2026-08-13), which is why the image installs
-from `git main` rather than from PyPI.
+Support landed in commit `05e268a4` (2026-08-13). It is included in v0.1.3, so the
+image pins that release commit rather than an unversioned `main` state.
 
 ## The versions are coupled, and the base image tag matters
 
-`sglang-omni` 0.1.1 pins exactly `sglang==0.5.16` and `torch==2.11.0`. The base
+`sglang-omni` v0.1.3 pins exactly `sglang==0.5.16` and `torch==2.11.0`. The base
 image is therefore `lmsysorg/sglang:v0.5.16` (arm64 available) and **not** `:dev`,
 which ships `sglang 0.0.0.dev1`. A `pip install` into `:dev` would downgrade
 sglang and break the kernels compiled into the image. Same trap as vllm/vllm-omni
@@ -64,7 +64,8 @@ The base image ships `flash-attn-4`, and the server picks `torch_sdpa` anyway. A
 source build would have taken over 100 minutes on this hardware, for a backend
 that never gets used.
 
-## Compressed output is mono
+## Compressed non-streaming output preserves stereo
 
-Separate page, because it is a limitation you inherit rather than one you can
-build around: [`upstream-issue-mono.md`](upstream-issue-mono.md).
+SGLang-Omni v0.1.3 includes #1558. MP3, FLAC, Opus and AAC preserve stereo for
+non-streaming responses; the raw PCM streaming contract remains mono. The history
+and scope are in [`upstream-issue-mono.md`](upstream-issue-mono.md).

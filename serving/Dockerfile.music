@@ -9,8 +9,8 @@
 # bauen, und die Pruefung auf echter Hardware ist ein eigener Schritt
 # (serving/pruefe_image.sh).
 #
-# Basis ist v0.5.16, weil sglang-omni exakt sglang==0.5.16 pinnt — sowohl im
-# Release 0.1.1 als auch in main. Im :dev-Image steckt sglang 0.0.0.dev1, ein
+# Basis ist v0.5.16, weil sglang-omni v0.1.3 exakt sglang==0.5.16 pinnt. Im
+# :dev-Image steckt sglang 0.0.0.dev1, ein
 # pip install wuerde es herunterstufen und die mitgebauten Kernel zerschiessen.
 FROM lmsysorg/sglang:v0.5.16
 
@@ -23,11 +23,11 @@ FROM lmsysorg/sglang:v0.5.16
 # "[Model] Support MiniMax Music 3 Model (#1521)" vom 2026-08-13 — nach dem
 # letzten Tag. Deshalb main statt PyPI.
 #
-# Auf einen Commit festgenagelt statt auf 'main': ein Image, das bei jedem Bau
-# etwas anderes enthaelt, ist kein Artefakt, sondern ein Zufall. 68abc7ee ist
-# der Stand, der am 2026-08-14 auf dem GB10 nachweislich Musik erzeugt hat.
-# Hochziehen ist ein bewusster Commit, kein Nebeneffekt eines Rebuilds.
-ARG SGLANG_OMNI_COMMIT=68abc7eec59ff7b0dce484cb501ffbbb338f9e46
+# Auf den Release-Commit festgenagelt statt auf 'main': ein Image, das bei
+# jedem Bau etwas anderes enthaelt, ist kein Artefakt, sondern ein Zufall.
+# v0.1.3 enthaelt MiniMax-Music3 und #1558, das Stereo fuer MP3, FLAC, Opus
+# und AAC in nicht-streamenden Antworten erhaelt.
+ARG SGLANG_OMNI_COMMIT=91d4359fa06d1b60834250624116318ffa448e18
 
 # --no-deps ist hier kein Trick, sondern korrekt: das Basisimage bringt den
 # kompletten gepinnten Stack schon mit (geprueft 2026-08-14) — flash-attn-4
