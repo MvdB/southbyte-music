@@ -29,7 +29,7 @@ Roughly 47 GB of weights.
 | Early stop | verified: asking for 4000 frames, the server reported `AR done frames=3839 finish_reason=stop` — rounding up generously is free |
 | Attention backend | `torch_sdpa` — flash-attn is never used |
 | WAV output | 32 kHz, **stereo**, 16 bit |
-| MP3 output | 32 kHz, **mono**, 40 kbit/s (see below) |
+| MP3 output | Non-streaming: 32 kHz, **stereo** with SGLang-Omni v0.1.3 |
 
 The interface estimates **22 s of fixed cost plus 0.211 s per frame** and labels
 the result as an estimate. A first version was fitted to the two short runs only
@@ -41,26 +41,25 @@ Length is capped at **7500 frames**. The `max` attribute only stops the arrow
 keys, so the interface caps again before sending. If the text needs more than
 5:00, it says so and asks you to cut, rather than truncating silently.
 
-## Ask for WAV, not MP3
+## Stereo compressed output
 
-The model produces 32 kHz **stereo**. Every compressed format the server offers
-comes back **mono** — half the signal, discarded silently. That is a limitation
-of the serving stack, not of the model, and the interface defaults to WAV
-because of it.
+The model produces 32 kHz **stereo**. With SGLang-Omni v0.1.3, non-streaming MP3,
+FLAC, Opus and AAC responses preserve both channels. The raw PCM streaming path
+remains mono by design.
 
-For a stereo MP3, re-encode afterwards. The ffmpeg for it is already in the
-serving image, so nothing needs installing on the host:
+`serving/wav_zu_mp3.sh` remains useful for converting an existing WAV or selecting
+a specific MP3 bitrate. The ffmpeg for it is already in the serving image, so
+nothing needs installing on the host:
 
 ```bash
 serving/wav_zu_mp3.sh song.wav              # -> song.mp3, 192 kbit/s, stereo
 serving/wav_zu_mp3.sh song.wav final.mp3 320
 ```
 
-The script checks its own output and aborts if it came out single-channel after
-all. Where exactly this happens in the code, and why, is in
-[`upstream-issue-mono.md`](upstream-issue-mono.md); reported upstream
-as [sgl-project/sglang-omni#1549](https://github.com/sgl-project/sglang-omni/issues/1549),
-still open.
+The script checks its own output and aborts if it came out single-channel. The
+former serving bug is documented in [`upstream-issue-mono.md`](upstream-issue-mono.md):
+[sgl-project/sglang-omni#1558](https://github.com/sgl-project/sglang-omni/pull/1558)
+closed [#1549](https://github.com/sgl-project/sglang-omni/issues/1549) in v0.1.3.
 
 ## Write the caption in English
 

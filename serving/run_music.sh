@@ -21,7 +21,7 @@
 # SGLang-Omni ist ein eigenes Projekt (sgl-project/sglang-omni, PyPI
 # sglang-omni), genau wie vllm-omni neben vllm steht.
 #
-# WICHTIG — Versionskopplung: sglang-omni 0.1.1 pinnt exakt sglang==0.5.16
+# WICHTIG — Versionskopplung: sglang-omni v0.1.3 pinnt exakt sglang==0.5.16
 # und torch==2.11.0. Deshalb ist die Basis lmsysorg/sglang:v0.5.16 (arm64
 # vorhanden) und NICHT :dev, das sglang 0.0.0.dev1 mitbringt. Ein pip install
 # in :dev wuerde sglang herunterstufen und die im Image gebauten Kernel
