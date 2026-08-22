@@ -11,7 +11,7 @@ helm install musik oci://ghcr.io/mvdb/charts/southbyte-music \
   --namespace musik --create-namespace
 
 # Pin a version
-helm install musik oci://ghcr.io/mvdb/charts/southbyte-music --version 0.1.5 \
+helm install musik oci://ghcr.io/mvdb/charts/southbyte-music --version 0.1.6 \
   --namespace musik --create-namespace
 
 # Or from a checkout
@@ -19,7 +19,7 @@ helm install musik charts/southbyte-music \
   --namespace musik --create-namespace
 ```
 
-Every push to `main` also publishes a SemVer *pre-release* (`0.1.5-main.48`).
+Every push to `main` also publishes a SemVer *pre-release* (`0.1.6-main.52`).
 Helm ignores those unless you pass `--devel` or name one with `--version`, so
 plain `helm install` always lands on a tagged release and never on whatever was
 merged last.

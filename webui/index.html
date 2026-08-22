@@ -435,8 +435,17 @@ $("endpunkt-anzeige").textContent = ENDPUNKT || "gleiche Herkunft wie diese Seit
 // weiterging, und zaehlte obendrein anders als die Bildmarke. Dieselbe Falle
 // wie bei der appVersion des Charts: eine Nummer, die niemand zwingt, richtig
 // zu sein, ist irgendwann falsch.
-const VERSION = (window.SOUTHBYTE_MUSIC || {}).version;
-$("version-anzeige").textContent = VERSION ? `v${VERSION}` : "unversioniert";
+// Die Bauwerte kommen aus github.ref_name: bei einem Tag "v0.1.5", bei einem
+// Branch "main", im Chart dagegen "0.1.5" ohne v. Ein blindes `v${...}` machte
+// daraus "vv0.1.5" und "vmain" — genau das stand im veroeffentlichten 0.1.5 im
+// Fuss. Also fuehrendes "v" abschneiden und nur wieder setzen, wenn eine Zahl
+// folgt; alles andere (main, sha-abc1234) bleibt, wie es ist.
+const VERSION = ((window.SOUTHBYTE_MUSIC || {}).version || "").replace(/^v/, "");
+$("version-anzeige").textContent = !VERSION
+  ? "unversioniert"
+  : /^\d/.test(VERSION)
+    ? `v${VERSION}`
+    : VERSION;
 $("lyrics").addEventListener("input", laengeHinweisAktualisieren);
 $("ableiten").addEventListener("click", () => {
   $("laenge").value = textAnalysieren().frames;

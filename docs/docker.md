@@ -27,13 +27,13 @@ Two, built natively for `linux/amd64` and `linux/arm64` and published to GHCR:
 
 Both are **public** — `docker pull` needs no login and no token.
 
-Tags: `0.1.5` and `0.1` come from git tags, `main` follows the default branch,
+Tags: `0.1.6` and `0.1` come from git tags, `main` follows the default branch,
 `latest` tracks `main`, and `sha-<short>` pins an exact commit. `compose.yaml`
 pins a version tag on purpose; `main` and `latest` move under you by design.
 
 | Tag | Moves when | Use it for |
 |---|---|---|
-| `0.1.5`, `sha-<short>` | never | a run whose result has to stay attributable |
+| `0.1.6`, `sha-<short>` | never | a run whose result has to stay attributable |
 | `0.1` | a release is tagged | unattended updates that should stay on releases |
 | `latest`, `main` | every push to `main` | following the branch head deliberately |
 
@@ -55,7 +55,7 @@ identical to the last digit. See
 records the digest of every generation for exactly this reason.
 
 ```bash
-docker buildx imagetools inspect ghcr.io/mvdb/southbyte-music:0.1.5   # both platforms
+docker buildx imagetools inspect ghcr.io/mvdb/southbyte-music:0.1.6   # both platforms
 ```
 
 The server image is large because the SGLang base image is 24.6 GB of it. That is
@@ -71,7 +71,7 @@ expose. Knobs, all optional:
 
 | Variable | Default | |
 |---|---|---|
-| `SOUTHBYTE_MUSIC_VERSION` | `0.1.5` | tag for both images |
+| `SOUTHBYTE_MUSIC_VERSION` | `0.1.6` | tag for both images |
 | `HF_MODELS_DIR` | `$HOME/hf_models` | where the model lives |
 | `MODEL_DIR` | `MiniMaxAI--MiniMax-Music3` | the directory inside it |
 | `MUSIK_PORT` / `WEBUI_PORT` | `8011` / `8080` | host ports |
@@ -86,7 +86,7 @@ Measured on the DGX Spark with `compose.yaml` as it stands: server ready after
 
 Note that image tag `0.1.0` predates runtime endpoint configuration and ignores
 `SOUTHBYTE_ENDPUNKT`; the browser then addresses port 8011 directly instead of
-going through the proxy. That is why the pinned tag is `0.1.5`. See
+going through the proxy. That is why the pinned tag is `0.1.6`. See
 [`oberflaeche.md`](oberflaeche.md).
 
 **Two different things are both called 0.1.3, and they are unrelated.** This
@@ -105,7 +105,7 @@ thing compose deliberately does not: it can load a machine profile from
 
 ```bash
 cd serving && ./run_music.sh                                   # locally built image
-IMAGE=ghcr.io/mvdb/southbyte-music:0.1.5 ./run_music.sh        # the published one
+IMAGE=ghcr.io/mvdb/southbyte-music:0.1.6 ./run_music.sh        # the published one
 ```
 
 ## Building it yourself
@@ -124,7 +124,7 @@ install. Whether the image *runs* is a separate step, on the hardware:
 
 ```bash
 serving/pruefe_image.sh                                     # locally built image
-serving/pruefe_image.sh ghcr.io/mvdb/southbyte-music:0.1.5  # the published one
+serving/pruefe_image.sh ghcr.io/mvdb/southbyte-music:0.1.6  # the published one
 ```
 
 It pulls, starts, waits for readiness, generates a short piece and checks the WAV
