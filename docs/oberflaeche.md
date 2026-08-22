@@ -22,7 +22,7 @@ Three cases:
 In the container the file is written at startup from `SOUTHBYTE_ENDPUNKT`, which
 defaults to `/`. That default arrived after `v0.1.0`, so image tag `0.1.0` still
 ignores the variable — one more reason the pinned tag in `compose.yaml` is
-`0.1.4`.
+`0.1.5`.
 
 The resolved endpoint is shown in the page footer, so a misconfiguration stays
 visible without being editable.

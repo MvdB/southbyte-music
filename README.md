@@ -26,7 +26,7 @@ Measured on a DGX Spark (GB10), not estimated:
 | | |
 |---|---|
 | Length | up to **5:00** per piece — 7500 frames at 25 fps, the range the model was trained for |
-| Generation time | **5–6× the playing time**; a three-minute song is about a quarter of an hour |
+| Generation time | about **5.4× the playing time**; a three-minute song is about a quarter of an hour |
 | Server start | **160 s** until it answers |
 | Length from lyrics | about **1.62 sung syllables per second** — that is how the interface turns a lyric sheet into a frame count |
 | Output | 32 kHz **stereo** — 16 bit WAV, or MP3 at 48 kbit/s |

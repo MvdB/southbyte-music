@@ -24,18 +24,40 @@ Roughly 47 GB of weights.
 | | |
 |---|---|
 | Server start | 160 s |
-| Generation time | roughly **5–6× the playing time**; four data points: 250/750/1500/3839 frames → 85/157/356/831 s |
+| Generation time | about **5.4× the playing time** at usable lengths; four points on image `0.1.4`: 250/751/1502/4005 frames → 45/155/315/865 s |
 | Frames from text | about **1.62 sung syllables per second** — the built-in example (22 lines, 234 syllables) lands at 4350 frames ≈ 2:54 with 20 % headroom |
 | Early stop | verified: asking for 4000 frames, the server reported `AR done frames=3839 finish_reason=stop` — rounding up generously is free |
 | Attention backend | `torch_sdpa` — flash-attn is never used |
 | WAV output | 32 kHz, **stereo**, 16 bit |
 | MP3 output | 32 kHz, **stereo**, 48 kbit/s — measured on image `0.1.4` (sglang-omni `91d4359f`), non-streaming |
 
-The interface estimates **22 s of fixed cost plus 0.211 s per frame** and labels
-the result as an estimate. A first version was fitted to the two short runs only
-(250 and 750 frames) and came out a quarter too low at 1500 frames — short runs
-do not extrapolate to long ones. The fourth data point at 3839 frames is what
-straightened the line.
+The interface estimates **0.2184 s per frame less 10.3 s** and labels the result
+as an estimate. An early version was fitted to two short runs only (250 and 750
+frames) and came out a quarter too low at 1500 — short runs do not extrapolate
+to long ones.
+
+**Re-measured on 2026-08-22** against image `0.1.4` (sglang-omni v0.1.3),
+because the original set came from `68abc7ee` and no longer described the server:
+
+| frames | 2026-08-14 | 2026-08-22 |
+|---|---|---|
+| 250 | 85 s | **45 s** |
+| ~750 | 157 s | **155 s** |
+| ~1500 | 356 s | **315 s** |
+| ~3900 | 831 s | **865 s** (4005 frames) |
+
+The long end barely moved — 0.2165 s per frame then, 0.216 s now. What
+disappeared is the cost at the short end. The new line fits with a mean
+deviation of **1.4 s** against 13.2 s for the old one.
+
+**The intercept is negative, and that is not sloppiness.** Cost per frame rises
+with length — 0.180 s at 250 frames, 0.206 at 751, 0.210 at 1502, 0.216 at 4005
+— so a straight line through a slightly convex curve has to start below zero.
+There is no meaningful fixed cost left to name. The interface therefore floors
+the estimate instead of extrapolating below the shortest measured point;
+unfloored, the line would go negative under 47 frames. A quadratic fits better
+still (mean 0.8 s) but spends three parameters on four points, which is not a
+trade worth making for a progress bar.
 
 Length is capped at **7500 frames**. The `max` attribute only stops the arrow
 keys, so the interface caps again before sending. If the text needs more than

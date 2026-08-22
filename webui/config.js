@@ -10,6 +10,11 @@
 //
 // Nur setzen, wenn der Musik-Server woanders steht, zum Beispiel:
 //   endpunkt: "http://musik.intern:8011"
+// version und revision fuellt der Container beim Start aus den Bauwerten
+// des Image. Bleiben sie leer — etwa beim Ausliefern von der Platte —,
+// zeigt die Fusszeile "unversioniert" statt einer Zahl, die niemand pflegt.
 window.SOUTHBYTE_MUSIC = {
   endpunkt: "",
+  version: "",
+  revision: "",
 };
