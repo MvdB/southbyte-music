@@ -84,7 +84,9 @@ hour. The interface estimates it up front rather than leaving you guessing.
 
 **Choose the format you need.** SGLang-Omni v0.1.3 preserves the model's stereo
 signal in non-streaming MP3, FLAC, Opus and AAC responses. Streaming audio remains
-mono by design. Background: [`docs/upstream-issue-mono.md`](docs/upstream-issue-mono.md).
+mono by design. This needs a server image from release **`0.1.4`** or later —
+image tag `0.1.3` was built before the pin and still returns mono, despite the
+matching number. Background: [`docs/upstream-issue-mono.md`](docs/upstream-issue-mono.md).
 
 **Write the caption in English.** A German one pulls the result audibly towards
 German-language pop — *"Melodischer Metal, 150 BPM"* landed closer to 1980s Neue
@@ -132,10 +134,10 @@ above, with numbers. What is missing is named rather than planned:
   metric here; what sounds good is decided by ear. The one narrow exception
   compares caption *forms*, not model quality:
   [`eval/caption-ab/`](eval/caption-ab/ERGEBNIS.md).
-- **The v0.1.3 image has not been run on the GB10 yet.** Upstream's deterministic
-  CPU tests cover stereo encoding, and `serving/pruefe_image.sh` now asks the
-  server for an MP3 and fails if it comes back mono — so the check exists. What is
-  missing is the run itself, on the hardware.
+- **The `0.1.4` image has not been run on the GB10 yet.** Upstream's deterministic
+  CPU tests cover stereo encoding, and `serving/pruefe_image.sh` asks the server
+  for an MP3 and fails if it comes back mono — so the check exists. What is missing
+  is the run itself, on the hardware.
 
 Issues and pull requests are welcome; nobody is on call for them.
 
