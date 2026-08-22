@@ -29,7 +29,7 @@ Roughly 47 GB of weights.
 | Early stop | verified: asking for 4000 frames, the server reported `AR done frames=3839 finish_reason=stop` — rounding up generously is free |
 | Attention backend | `torch_sdpa` — flash-attn is never used |
 | WAV output | 32 kHz, **stereo**, 16 bit |
-| MP3 output | Non-streaming: 32 kHz, **stereo** with SGLang-Omni v0.1.3 |
+| MP3 output | non-streaming **stereo** since SGLang-Omni v0.1.3 — that is the upstream fix, *not yet re-measured on this hardware*; `serving/pruefe_image.sh` checks it |
 
 The interface estimates **22 s of fixed cost plus 0.211 s per frame** and labels
 the result as an estimate. A first version was fitted to the two short runs only
@@ -56,8 +56,9 @@ serving/wav_zu_mp3.sh song.wav              # -> song.mp3, 192 kbit/s, stereo
 serving/wav_zu_mp3.sh song.wav final.mp3 320
 ```
 
-The script checks its own output and aborts if it came out single-channel. The
-former serving bug is documented in [`upstream-issue-mono.md`](upstream-issue-mono.md):
+The script checks its own output and aborts if it came out single-channel — the
+same check `serving/pruefe_image.sh` runs against the server's own MP3 response,
+shared as `serving/pruefe_mp3.py`. The former serving bug is documented in [`upstream-issue-mono.md`](upstream-issue-mono.md):
 [sgl-project/sglang-omni#1558](https://github.com/sgl-project/sglang-omni/pull/1558)
 closed [#1549](https://github.com/sgl-project/sglang-omni/issues/1549) in v0.1.3.
 

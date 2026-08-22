@@ -10,22 +10,19 @@
 #   ./wav_zu_mp3.sh lied.wav fertig.mp3 320 # eigener Name und eigene Bitrate
 set -euo pipefail
 
+HIER="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 EIN="${1:?Aufruf: $0 <eingabe.wav> [ausgabe.mp3] [bitrate-kbit]}"
 AUS="${2:-${EIN%.*}.mp3}"
 BITRATE="${3:-192}"
 IMAGE="${IMAGE:-southbyte-music:lokal}"
 
-[[ -f "$EIN" ]] || {
-  echo "FEHLER: $EIN gibt es nicht" >&2
-  exit 1
-}
+[[ -f "$EIN" ]] || { echo "FEHLER: $EIN gibt es nicht" >&2; exit 1; }
 
 VERZ="$(cd "$(dirname "$EIN")" && pwd)"
 AUS_VERZ="$(cd "$(dirname "$AUS")" && pwd)"
 [[ "$VERZ" == "$AUS_VERZ" ]] || {
-  echo "FEHLER: Ein- und Ausgabe muessen im selben Verzeichnis liegen" >&2
-  exit 1
-}
+  echo "FEHLER: Ein- und Ausgabe muessen im selben Verzeichnis liegen" >&2; exit 1; }
 
 docker run --rm -v "$VERZ:/work" --entrypoint bash "$IMAGE" -c '
   FF=$(python3 -c "import imageio_ffmpeg;print(imageio_ffmpeg.get_ffmpeg_exe())")
@@ -39,21 +36,6 @@ docker run --rm -v "$VERZ:/work" --entrypoint bash "$IMAGE" -c '
 '
 
 # Kanaele der Ausgabe pruefen — eine Umwandlung, die still auf Mono faellt,
-# waere genau der Fehler, den dieses Skript beheben soll.
-python3 - "$AUS" <<'PY'
-import struct, sys, pathlib
-d = pathlib.Path(sys.argv[1]).read_bytes()
-off = 10 + (((d[6] & 0x7F) << 21) | ((d[7] & 0x7F) << 14) | ((d[8] & 0x7F) << 7) | (d[9] & 0x7F)) if d[:3] == b"ID3" else 0
-i = d.find(b"\xff", off)
-while i >= 0 and i + 3 < len(d):
-    if d[i + 1] & 0xE0 == 0xE0:
-        h = struct.unpack(">I", d[i:i + 4])[0]
-        rate = [44100, 48000, 32000][(h >> 10) & 3]
-        modus = ["Stereo", "Joint-Stereo", "Dual-Kanal", "Mono"][(h >> 6) & 3]
-        kb = [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 0][(h >> 12) & 15]
-        print(f"{sys.argv[1]}: {rate} Hz, {modus}, {kb} kbit/s, {len(d) / 1024:.0f} KB")
-        if modus == "Mono":
-            sys.exit("FEHLER: Ausgabe ist Mono geworden")
-        break
-    i = d.find(b"\xff", i + 1)
-PY
+# waere genau der Fehler, den dieses Skript beheben soll. Dieselbe Pruefung
+# nimmt pruefe_image.sh auf die Antwort des Servers an.
+python3 "${HIER}/pruefe_mp3.py" "$AUS"

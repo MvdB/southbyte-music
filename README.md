@@ -132,9 +132,10 @@ above, with numbers. What is missing is named rather than planned:
   metric here; what sounds good is decided by ear. The one narrow exception
   compares caption *forms*, not model quality:
   [`eval/caption-ab/`](eval/caption-ab/ERGEBNIS.md).
-- **No hardware regression for v0.1.3 yet.** Upstream's deterministic CPU tests
-  cover stereo encoding; a real MiniMax-Music3 MP3 request on the GB10 still needs
-  to verify the deployed image.
+- **The v0.1.3 image has not been run on the GB10 yet.** Upstream's deterministic
+  CPU tests cover stereo encoding, and `serving/pruefe_image.sh` now asks the
+  server for an MP3 and fails if it comes back mono — so the check exists. What is
+  missing is the run itself, on the hardware.
 
 Issues and pull requests are welcome; nobody is on call for them.
 
