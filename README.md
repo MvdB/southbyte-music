@@ -29,7 +29,7 @@ Measured on a DGX Spark (GB10), not estimated:
 | Generation time | **5–6× the playing time**; a three-minute song is about a quarter of an hour |
 | Server start | **160 s** until it answers |
 | Length from lyrics | about **1.62 sung syllables per second** — that is how the interface turns a lyric sheet into a frame count |
-| Output | 32 kHz stereo, 16 bit WAV |
+| Output | 32 kHz **stereo** — 16 bit WAV, or MP3 at 48 kbit/s |
 
 How each number was arrived at, including the one that was wrong the first time:
 [`docs/modell.md`](docs/modell.md).
@@ -83,10 +83,12 @@ shape of the piece. Numbers and recipe:
 hour. The interface estimates it up front rather than leaving you guessing.
 
 **Choose the format you need.** SGLang-Omni v0.1.3 preserves the model's stereo
-signal in non-streaming MP3, FLAC, Opus and AAC responses. Streaming audio remains
-mono by design. This needs a server image from release **`0.1.4`** or later —
-image tag `0.1.3` was built before the pin and still returns mono, despite the
-matching number. Background: [`docs/upstream-issue-mono.md`](docs/upstream-issue-mono.md).
+signal in non-streaming MP3, FLAC, Opus and AAC responses — verified on the GB10
+against image `0.1.4`: the same request returns 32 kHz stereo as WAV and as a
+48 kbit/s MP3. Streaming audio remains mono by design. This needs a server image
+from release **`0.1.4`** or later — image tag `0.1.3` was built before the pin and
+still returns mono, despite the matching number. Background:
+[`docs/upstream-issue-mono.md`](docs/upstream-issue-mono.md).
 
 **Write the caption in English.** A German one pulls the result audibly towards
 German-language pop — *"Melodischer Metal, 150 BPM"* landed closer to 1980s Neue
@@ -134,10 +136,6 @@ above, with numbers. What is missing is named rather than planned:
   metric here; what sounds good is decided by ear. The one narrow exception
   compares caption *forms*, not model quality:
   [`eval/caption-ab/`](eval/caption-ab/ERGEBNIS.md).
-- **The `0.1.4` image has not been run on the GB10 yet.** Upstream's deterministic
-  CPU tests cover stereo encoding, and `serving/pruefe_image.sh` asks the server
-  for an MP3 and fails if it comes back mono — so the check exists. What is missing
-  is the run itself, on the hardware.
 
 Issues and pull requests are welcome; nobody is on call for them.
 

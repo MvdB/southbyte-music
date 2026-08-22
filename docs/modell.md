@@ -29,7 +29,7 @@ Roughly 47 GB of weights.
 | Early stop | verified: asking for 4000 frames, the server reported `AR done frames=3839 finish_reason=stop` — rounding up generously is free |
 | Attention backend | `torch_sdpa` — flash-attn is never used |
 | WAV output | 32 kHz, **stereo**, 16 bit |
-| MP3 output | non-streaming **stereo** since SGLang-Omni v0.1.3 — that is the upstream fix, *not yet re-measured on this hardware*; `serving/pruefe_image.sh` checks it |
+| MP3 output | 32 kHz, **stereo**, 48 kbit/s — measured on image `0.1.4` (sglang-omni `91d4359f`), non-streaming |
 
 The interface estimates **22 s of fixed cost plus 0.211 s per frame** and labels
 the result as an estimate. A first version was fitted to the two short runs only
@@ -46,6 +46,22 @@ keys, so the interface caps again before sending. If the text needs more than
 The model produces 32 kHz **stereo**. With SGLang-Omni v0.1.3, non-streaming MP3,
 FLAC, Opus and AAC responses preserve both channels. The raw PCM streaming path
 remains mono by design.
+
+Verified on the GB10 with `serving/pruefe_image.sh` against image `0.1.4`
+(`linux/arm64`, revision `3c78ccd`, sglang-omni `91d4359f`). Same request, both
+formats:
+
+```
+4/6  WAV  HTTP 200 in 50 s
+5/6       32000 Hz, 2 Kanaele, 10.0 s, 1250 KB
+6/6  MP3  HTTP 200 in 16 s
+          32000 Hz, Stereo, 48 kbit/s, 48 KB
+```
+
+The MP3 is a twenty-sixth of the size and keeps both channels, which is what the
+whole exercise was about. Note the bitrate: **48 kbit/s**, chosen by the server,
+not by the caller — `serving/wav_zu_mp3.sh` is still the way to get a specific
+one.
 
 `serving/wav_zu_mp3.sh` remains useful for converting an existing WAV or selecting
 a specific MP3 bitrate. The ffmpeg for it is already in the serving image, so
