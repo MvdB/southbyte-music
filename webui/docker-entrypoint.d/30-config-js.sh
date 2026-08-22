@@ -14,6 +14,8 @@ set -eu
 
 ZIEL=/usr/share/nginx/html/config.js
 ENDPUNKT="${SOUTHBYTE_ENDPUNKT:-/}"
+VERSION="${SOUTHBYTE_VERSION:-}"
+REVISION="${SOUTHBYTE_REVISION:-}"
 
 # Schreibbarkeit wird PROBIERT, nicht erfragt. Ein Test mit -w prueft nur die
 # Rechte-Bits: die Datei gehoert nginx, also meldet -w "ja" — auch auf einem
@@ -35,6 +37,8 @@ cat > "${ZIEL}" <<EOF
 // die Datei wird bei jedem Neustart des Containers ueberschrieben.
 window.SOUTHBYTE_MUSIC = {
   endpunkt: "${ENDPUNKT}",
+  version: "${VERSION}",
+  revision: "${REVISION}",
 };
 EOF
-echo "config.js gesetzt: endpunkt=\"${ENDPUNKT}\""
+echo "config.js gesetzt: endpunkt=\"${ENDPUNKT}\" version=\"${VERSION}\""

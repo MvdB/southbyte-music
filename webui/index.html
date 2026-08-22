@@ -299,7 +299,7 @@ Embellishments, Textures & Spatial FX: The intro is built from a rising synth pa
 <footer>
   <div>
     Erzeugt mit MiniMax-Music3 · SOUTH<span style="color:var(--green)">.</span>BYTE
-    · <span class="version">v0.4.0 — 2026-08-15</span>
+    · <span class="version" id="version-anzeige"></span>
     · <span class="version" id="endpunkt-anzeige"></span>
   </div>
   <div class="poc">
@@ -337,20 +337,34 @@ const ENDPUNKT = (() => {
 // ── Zeitschaetzung ───────────────────────────────────────────────────────
 // Der Server liefert KEINEN echten Fortschritt: stream:true wird mit HTTP 400
 // abgelehnt, und /health meldet nur, wie viele Anfragen laufen, nicht wie weit.
-// Der Balken beruht deshalb auf vier Messungen auf dem DGX Spark:
-//   250 -> 85 s | 750 -> 157 s | 1500 -> 356 s | 3839 -> 831 s
-// Ausgleichsgerade: rund 22 s Grundlast plus 0,211 s je Frame.
-// Eine erste Fassung aus nur den beiden kurzen Laeufen lag bei 1500 Frames um
-// ein Viertel zu niedrig — kurze Laeufe taugen nicht zur Hochrechnung auf lange.
+// Der Balken beruht deshalb auf vier Messungen auf dem DGX Spark, neu erhoben
+// am 2026-08-22 auf Bildmarke 0.1.4 (sglang-omni v0.1.3):
+//   250 -> 45 s | 751 -> 155 s | 1502 -> 315 s | 4005 -> 865 s
+// Ausgleichsgerade: -10,3 s Achsenabschnitt plus 0,2184 s je Frame, mittlere
+// Abweichung 1,4 s. Die alte Kurve (22 s + 0,211 s, gemessen auf sglang-omni
+// 68abc7ee) lag bei kurzen Stuecken fast doppelt zu hoch.
+//
+// Der Achsenabschnitt ist NEGATIV, und das ist keine Schlamperei: es gibt
+// praktisch keine Fixkosten mehr, dafuer steigen die Kosten je Frame mit der
+// Laenge (0,180 s bei 250 Frames, 0,216 s bei 4005 — Aufmerksamkeit ueber eine
+// laengere Folge). Die Gerade ist die lineare Naeherung dieser leicht gekruemmten
+// Kurve; sie heisst deshalb Achsenabschnitt und nicht Grundlast.
+//
+// Unterhalb des kuerzesten Messpunkts wird nicht extrapoliert, sondern
+// begrenzt: die Gerade liefe sonst unter 47 Frames ins Negative. Die Schranke
+// ist an einer Beobachtung geeicht — 100 Frames brauchten in pruefe_image.sh
+// 16 s.
 // Es bleibt eine Schaetzung und wird auch so beschriftet. Laeuft die Erzeugung
 // darueber hinaus, springt der Balken NICHT auf 100 %, sondern wechselt auf
 // Amber und pulsiert: ein voller Balken, hinter dem noch Minuten kommen, waere
 // schlimmer als gar keiner.
 // Haeufiger ist der andere Fall — der Balken ist frueher fertig als geschaetzt,
 // weil das Modell bei Textende von selbst aufhoert (siehe RESERVE unten).
-const GRUNDLAST_S = 22;
-const SEKUNDEN_JE_FRAME = 0.211;
-const schaetzung = frames => GRUNDLAST_S + SEKUNDEN_JE_FRAME * frames;
+const ACHSENABSCHNITT_S = -10.3;
+const SEKUNDEN_JE_FRAME = 0.2184;
+const MINDESTSCHAETZUNG_S = 15;
+const schaetzung = frames =>
+  Math.max(MINDESTSCHAETZUNG_S, ACHSENABSCHNITT_S + SEKUNDEN_JE_FRAME * frames);
 const mmss = s => `${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,"0")}`;
 
 // ── Laenge aus dem Text ableiten ─────────────────────────────────────────
@@ -414,6 +428,15 @@ function laengeHinweisAktualisieren() {
         : ` — empfohlen ${a.frames}`);
 }
 $("endpunkt-anzeige").textContent = ENDPUNKT || "gleiche Herkunft wie diese Seite";
+
+// Version aus config.js, die der Container beim Start aus den Bauwerten
+// schreibt. Vorher stand hier eine von Hand gepflegte Zeichenkette — sie blieb
+// am 2026-08-15 auf "v0.4.0" stehen, waehrend das Repository vier Releases
+// weiterging, und zaehlte obendrein anders als die Bildmarke. Dieselbe Falle
+// wie bei der appVersion des Charts: eine Nummer, die niemand zwingt, richtig
+// zu sein, ist irgendwann falsch.
+const VERSION = (window.SOUTHBYTE_MUSIC || {}).version;
+$("version-anzeige").textContent = VERSION ? `v${VERSION}` : "unversioniert";
 $("lyrics").addEventListener("input", laengeHinweisAktualisieren);
 $("ableiten").addEventListener("click", () => {
   $("laenge").value = textAnalysieren().frames;

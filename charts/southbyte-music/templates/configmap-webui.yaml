@@ -10,8 +10,13 @@ data:
   # Ueberdeckt die im Image mitgelieferte config.js. Das ist der einzige Ort,
   # an dem der Endpunkt gesetzt wird — die Oberflaeche hat dafuer bewusst kein
   # Eingabefeld, weil das eine Frage des Betriebs ist und nicht des Anwenders.
+  # Die ConfigMap ueberdeckt die Datei vollstaendig, also muss die Version hier
+  # mit — sonst zeigt die Fusszeile im Cluster "unversioniert", waehrend sie im
+  # reinen Docker-Betrieb stimmt. Quelle ist dieselbe wie fuer die Bildmarke.
   config.js: |
     window.SOUTHBYTE_MUSIC = {
       endpunkt: {{ .Values.webui.endpunkt | quote }},
+      version: {{ .Values.webui.image.tag | default .Chart.AppVersion | quote }},
+      revision: "",
     };
 {{- end }}

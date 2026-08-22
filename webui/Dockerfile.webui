@@ -50,6 +50,14 @@ HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
 ARG VERSION=dev
 ARG REVISION=unknown
 ARG CREATED=unknown
+
+# Dieselben Bauwerte auch zur Laufzeit: 30-config-js.sh schreibt sie in
+# config.js, und die Fusszeile zeigt sie an. Vorher stand die Version als
+# Zeichenkette in index.html und musste von Hand gepflegt werden — sie blieb
+# prompt stehen. Was aus dem Bau kommt, kann nicht veralten.
+ENV SOUTHBYTE_VERSION=${VERSION} \
+    SOUTHBYTE_REVISION=${REVISION}
+
 LABEL org.opencontainers.image.title="southbyte-music-webui" \
       org.opencontainers.image.description="Weboberflaeche fuer MiniMax-Music3, mit Reverse-Proxy auf /v1/" \
       org.opencontainers.image.source="https://github.com/MvdB/southbyte-music" \
