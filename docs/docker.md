@@ -120,8 +120,9 @@ serving/pruefe_image.sh ghcr.io/mvdb/southbyte-music:0.1.3  # the published one
 ```
 
 It pulls, starts, waits for readiness, generates a short piece and checks the WAV
-header — 32 kHz, stereo, plausible length. A 200 response only proves that
-something came back.
+header — 32 kHz, stereo, plausible length — then asks for a second, much shorter
+one as MP3 and fails if the frame header says mono. A 200 response only proves
+that something came back.
 
 ## How CI builds and publishes
 

@@ -10,23 +10,24 @@
 # (serving/pruefe_image.sh).
 #
 # Basis ist v0.5.16, weil sglang-omni v0.1.3 exakt sglang==0.5.16 pinnt. Im
-# :dev-Image steckt sglang 0.0.0.dev1, ein
-# pip install wuerde es herunterstufen und die mitgebauten Kernel zerschiessen.
+# :dev-Image steckt sglang 0.0.0.dev1, ein pip install wuerde es herunterstufen
+# und die mitgebauten Kernel zerschiessen.
 FROM lmsysorg/sglang:v0.5.16
 
-# ── Warum aus git und nicht von PyPI ─────────────────────────────────────
-# Das Release 0.1.1 kennt MiniMax-Music3 NICHT. Der Start scheitert mit
+# ── Warum v0.1.3, und warum als Commit ───────────────────────────────────
+# Das aeltere Release 0.1.1 kennt MiniMax-Music3 NICHT. Der Start scheitert mit
 #   ValueError: Config for MiniMaxMusic3ForConditionalGeneration not found
 #   in the pipeline config registry
 # Die Registry dort fuehrt Qwen3-TTS, Voxtral-TTS, Whisper, Zonos2 und andere,
 # aber kein MiniMax. Unterstuetzt wird es erst seit Commit 05e268a4
-# "[Model] Support MiniMax Music 3 Model (#1521)" vom 2026-08-13 — nach dem
-# letzten Tag. Deshalb main statt PyPI.
+# "[Model] Support MiniMax Music 3 Model (#1521)" vom 2026-08-13. v0.1.3 ist
+# das erste Release mit diesem Stand — und enthaelt zusaetzlich #1558, das
+# Stereo fuer MP3, FLAC, Opus und AAC in nicht-streamenden Antworten erhaelt.
 #
-# Auf den Release-Commit festgenagelt statt auf 'main': ein Image, das bei
+# Angegeben als Release-Commit statt als Versionsbereich: ein Image, das bei
 # jedem Bau etwas anderes enthaelt, ist kein Artefakt, sondern ein Zufall.
-# v0.1.3 enthaelt MiniMax-Music3 und #1558, das Stereo fuer MP3, FLAC, Opus
-# und AAC in nicht-streamenden Antworten erhaelt.
+# 91d4359f ist der Stand, den v0.1.3 taggt. Hochziehen ist ein bewusster
+# Commit, kein Nebeneffekt eines Rebuilds.
 ARG SGLANG_OMNI_COMMIT=91d4359fa06d1b60834250624116318ffa448e18
 
 # --no-deps ist hier kein Trick, sondern korrekt: das Basisimage bringt den
