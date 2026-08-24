@@ -408,6 +408,46 @@ function textAnalysieren() {
            roh, frames: Math.min(MAX_FRAMES, roh) };
 }
 
+// ── Dateiname ────────────────────────────────────────────────────────────
+// "southbyte-music-1755797000123.mp3" nannte den Zeitstempel des Klicks und
+// sonst nichts — im Download-Ordner liegen dann zehn Dateien, die sich nur in
+// einer Millisekundenzahl unterscheiden. Sprechend ist die erste gesungene
+// Zeile des Refrains: die Zeile, unter der man ein Lied wiedererkennt. Dazu
+// der Seed, denn er ist zusammen mit dem Text das, was das Stueck
+// reproduzierbar macht — zwei Dateien gleichen Namens sind dasselbe Lied.
+const UMSCHRIFT = { "ä": "ae", "ö": "oe", "ü": "ue", "ß": "ss" };
+
+function slug(text, maxLaenge = 60) {
+  return text.toLowerCase()
+    .replace(/[äöüß]/g, z => UMSCHRIFT[z])
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")   // é -> e, ñ -> n
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, maxLaenge)
+    .replace(/-+$/, "");
+}
+
+function titelZeile() {
+  const zeilen = $("lyrics").value.split("\n").map(z => z.trim()).filter(Boolean);
+  const gesungen = z => !z.startsWith("[");
+  // \b nach "chorus", damit [Chorus 2] noch trifft, [Pre-Chorus] aber nicht —
+  // der Tag enthaelt dasselbe Wort und stuende im Text weiter oben.
+  const start = zeilen.findIndex(z => /^\[\s*chorus\b/i.test(z));
+  if (start >= 0) {
+    // Nur bis zum naechsten Tag suchen: ein leerer [Chorus] soll auf die erste
+    // gesungene Zeile ueberhaupt zurueckfallen, nicht auf den naechsten Abschnitt.
+    const rest = zeilen.slice(start + 1);
+    const ende = rest.findIndex(z => z.startsWith("["));
+    const refrain = (ende >= 0 ? rest.slice(0, ende) : rest).find(gesungen);
+    if (refrain) return refrain;
+  }
+  return zeilen.find(gesungen) || "";
+}
+
+function dateiname(format, seed) {
+  return `${slug(titelZeile()) || "southbyte-music"}-seed${seed}.${format}`;
+}
+
 function laengeHinweisAktualisieren() {
   const frames = Number($("laenge").value) || 0;
   const audio = frames / 25;                     // 25 Frames je Sekunde
@@ -467,6 +507,7 @@ $("los").addEventListener("click", async () => {
     laengeHinweisAktualisieren();
   }
   const format = $("format").value;
+  const seed = Number($("seed").value) || 0;
   const erwartet = schaetzung(frames);
 
   knopf.disabled = true;
@@ -507,7 +548,7 @@ $("los").addEventListener("click", async () => {
         input: $("lyrics").value,
         instructions: $("beschreibung").value,
         response_format: format,
-        seed: Number($("seed").value),
+        seed,
         max_new_tokens: frames,
         stream: false
       })
@@ -536,7 +577,7 @@ $("los").addEventListener("click", async () => {
 
     const a = document.createElement("a");
     a.href = letzteUrl;
-    a.download = "southbyte-music-" + Date.now() + "." + format;
+    a.download = dateiname(format, seed);
     a.textContent = format.toUpperCase() + " herunterladen";
     $("download").appendChild(a);
   } catch (e) {
